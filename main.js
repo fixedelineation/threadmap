@@ -1,9 +1,7 @@
-// main.js – ES module (no build step required)
-
-import Dexie from 'dexie';
+// main.js – ES module (Dexie is already a global variable)
 
 // --------------------------------------------------------------
-// 1️⃣  Dexie DB definition (includes new fields)
+// 1️⃣ Dexie DB definition (includes new fields)
 // --------------------------------------------------------------
 export const db = new Dexie('ThreadMapDB');
 
@@ -27,7 +25,7 @@ db.version(3).stores({
   photos: '++id, waypointId, date'
 });
 
-export function getDistance(lat1, lon1, lat2, lon2) {
+function getDistance(lat1, lon1, lat2, lon2) {
   const R = 6371e3;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
@@ -49,7 +47,7 @@ export async function findNearbyWaypoints(lat, lng, radiusMeters = 100) {
 }
 
 // --------------------------------------------------------------
-// 2️⃣  Helper to generate a human‑readable trip name (city + year)
+// 2️⃣ Helper to generate a human‑readable trip name (city + year)
 // --------------------------------------------------------------
 export async function generateTripName(lat, lng, dateObj) {
   const year = dateObj.getFullYear();
@@ -66,7 +64,7 @@ export async function generateTripName(lat, lng, dateObj) {
 }
 
 // --------------------------------------------------------------
-// 3️⃣  Pin visual helper – colour based on primary tag
+// 3️⃣ Pin visual helper – colour based on primary tag
 // --------------------------------------------------------------
 export function getPinHtml(layer, tags = []) {
   const tagColors = {
@@ -97,7 +95,7 @@ export function getPinHtml(layer, tags = []) {
 }
 
 // --------------------------------------------------------------
-// 4️⃣  Global state & map init
+// 4️⃣ Global state & map init
 // --------------------------------------------------------------
 let map;
 export const state = {
@@ -142,7 +140,7 @@ function deselectAll() {
 }
 
 // --------------------------------------------------------------
-// 5️⃣  OSRM routing (used when connecting two waypoints)
+// 5️⃣ OSRM routing (used when connecting two waypoints)
 // --------------------------------------------------------------
 async function fetchRoute(from, to, mode) {
   const style = travelStyles[mode];
@@ -159,7 +157,7 @@ async function fetchRoute(from, to, mode) {
 }
 
 // --------------------------------------------------------------
-// 6️⃣  Travel‑mode styling (used for OSRM lines)
+// 6️⃣ Travel‑mode styling (used for OSRM lines)
 // --------------------------------------------------------------
 const travelStyles = {
   flight: { color: '#00D2FF', dashArray: '10, 10', weight: 2, profile: null },
@@ -171,7 +169,7 @@ const travelStyles = {
 };
 
 // --------------------------------------------------------------
-// 7️⃣  Add a waypoint (called from UI & from POI‑save)
+// 7️⃣ Add a waypoint (called from UI & from POI‑save)
 // --------------------------------------------------------------
 export async function addWaypoint(latlng, data) {
   const {
@@ -218,7 +216,7 @@ export async function addWaypoint(latlng, data) {
 }
 
 // --------------------------------------------------------------
-// 8️⃣  Click handling on existing way‑points
+// 8️⃣ Click handling on existing way‑points
 // --------------------------------------------------------------
 async function handleWaypointClick(id, marker) {
   if (state.selectedWaypoint && state.selectedWaypoint !== id) {
@@ -233,7 +231,7 @@ async function handleWaypointClick(id, marker) {
 }
 
 // --------------------------------------------------------------
-// 9️⃣  Connect two way‑points (creates a line)
+// 9️⃣ Connect two way‑points (creates a line)
 // --------------------------------------------------------------
 async function connectWaypoints(fromId, toId) {
   const mode = await showModeSelector();
@@ -247,7 +245,7 @@ async function connectWaypoints(fromId, toId) {
 }
 
 // --------------------------------------------------------------
-// 🔟  Render all strings (lines) – macro vs. micro view
+// 🔟 Render all strings (lines) – macro vs. micro view
 // --------------------------------------------------------------
 async function renderStrings() {
   Object.values(state.lines).forEach(l => map.removeLayer(l));
@@ -272,7 +270,7 @@ async function renderStrings() {
 }
 
 // --------------------------------------------------------------
-// 1️⃣1️⃣  Helper for a curved flight‑arc
+// 1️⃣1️⃣ Helper for a curved flight‑arc
 // --------------------------------------------------------------
 function generateArc(pts) {
   const p1 = L.latLng(pts[0].lat, pts[0].lng);
@@ -283,7 +281,7 @@ function generateArc(pts) {
 }
 
 // --------------------------------------------------------------
-// 1️⃣2️⃣  Show the “Add Anchor” modal (long‑press)
+// 1️⃣2️⃣ Show the “Add Anchor” modal (long‑press)
 // --------------------------------------------------------------
 export function showAddModal(latlng) {
   const modal = document.getElementById('add-modal');
@@ -293,7 +291,7 @@ export function showAddModal(latlng) {
 }
 
 // --------------------------------------------------------------
-// 1️⃣3️⃣  Show details for a saved waypoint (side‑sheet)
+// 1️⃣3️⃣ Show details for a saved waypoint (side‑sheet)
 // --------------------------------------------------------------
 export async function showWaypointDetails(id) {
   const sheet = document.getElementById('detail-sheet');
@@ -361,7 +359,7 @@ export async function showWaypointDetails(id) {
 }
 
 // --------------------------------------------------------------
-// 1️⃣4️⃣  Load photos for a waypoint (grid view)
+// 1️⃣4️⃣ Load photos for a waypoint (grid view)
 // --------------------------------------------------------------
 async function loadPhotosForWaypoint(id) {
   const photos = await db.photos.where('waypointId').equals(parseInt(id)).toArray();
@@ -375,7 +373,7 @@ async function loadPhotosForWaypoint(id) {
 }
 
 // --------------------------------------------------------------
-// 1️⃣5️⃣  Save a POI discovered via the Explore button
+// 1️⃣5️⃣ Save a POI discovered via the Explore button
 // --------------------------------------------------------------
 export async function savePOIAsWaypoint(lat, lng, name, type, category = 'all') {
   try {
@@ -414,7 +412,7 @@ export async function savePOIAsWaypoint(lat, lng, name, type, category = 'all') 
 }
 
 // --------------------------------------------------------------
-// 1️⃣6️⃣  Explore nearby places (Photon API) – now with a save button
+// 1️⃣6️⃣ Explore nearby places (Photon API) – now with a save button
 // --------------------------------------------------------------
 export async function exploreArea(category = 'all') {
   const btn = document.getElementById('explore-btn');
@@ -509,7 +507,7 @@ export async function exploreArea(category = 'all') {
 }
 
 // --------------------------------------------------------------
-// 1️⃣7️⃣  Mode selector (modal that appears when you connect two pins)
+// 1️⃣7️⃣ Mode selector (modal that appears when you connect two pins)
 // --------------------------------------------------------------
 async function showModeSelector() {
   return new Promise(resolve => {
@@ -529,7 +527,7 @@ async function showModeSelector() {
 }
 
 // --------------------------------------------------------------
-// 2️⃣0️⃣  Remove a waypoint (called from the side‑sheet delete button)
+// 2️⃣0️⃣ Remove a waypoint (called from the side‑sheet delete button)
 // --------------------------------------------------------------
 export async function removeWaypointFromMap(id) {
   const marker = state.markers[id];
@@ -547,12 +545,12 @@ export async function removeWaypointFromMap(id) {
 }
 
 // --------------------------------------------------------------
-// 2️⃣1️⃣  Export the Leaflet map instance (used by other modules)
+// 2️⃣1️⃣ Export the Leaflet map instance (used by other modules)
 // --------------------------------------------------------------
 export { map };
 
 // --------------------------------------------------------------
-// 2️⃣2️⃣  Toast helper – reusable across the app
+// 2️⃣2️⃣ Toast helper – reusable across the app
 // --------------------------------------------------------------
 function showToast(message, duration = 3000) {
   let toast = document.getElementById('passive-toast');
@@ -583,12 +581,12 @@ function showToast(message, duration = 3000) {
 }
 
 // --------------------------------------------------------------
-// 2️⃣3️⃣  Expose the detail‑sheet function globally (timeline uses it)
+// 2️⃣3️⃣ Expose the detail‑sheet function globally (timeline uses it)
 // --------------------------------------------------------------
 window.showWaypointDetails = showWaypointDetails;
 
 // --------------------------------------------------------------
-// 2️⃣4️⃣  UI helpers & event wiring (run after DOM is ready)
+// 2️⃣4️⃣ UI helpers & event wiring (run after DOM is ready)
 // --------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', async () => {
   // Initialise map
@@ -598,7 +596,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btn-search').addEventListener('click', async () => {
     const query = document.getElementById('address-search').value;
     if (query) {
-      // Simple Nominatim lookup (no API key)
       const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
       const results = await resp.json();
       if (results[0]) {
@@ -611,9 +608,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
   document.getElementById('address-search').addEventListener('keypress', e => {
-    if (e.key === 'Enter') {
-      document.getElementById('btn-search').click();
-    }
+    if (e.key === 'Enter') document.getElementById('btn-search').click();
   });
 
   // ----- FAB & Action Menu -----
@@ -627,7 +622,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
   document.getElementById('btn-connect-mode').addEventListener('click', async () => {
     if (state.selectedWaypoint) {
-      await showModeSelector(); // just to open the modal; actual connection happens on second click
+      await showModeSelector(); // opens modal; connection happens on second click
     } else {
       alert('Select a waypoint first.');
     }
@@ -661,12 +656,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     exploreArea(cat);
   });
 
-  // ----- Harvest photos (optional placeholder) -----
-  document.getElementById('harvest-btn').addEventListener('click', async () => {
-    alert('Photo‑harvest not implemented in this static version.');
-  });
-
-  // ----- Photo upload from detail sheet -----
+  // ----- Photo upload (detail sheet) -----
   document.getElementById('photo-input').addEventListener('change', e => {
     const wpId = document.getElementById('waypoint-id').value;
     if (wpId && e.target.files[0]) {
@@ -717,13 +707,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // ----- Initial load of timeline -----
-  await renderTimeline();        // timeline strip at bottom
+  await renderTimeline();        // bottom strip
   renderTimelineFilters();       // filter UI (tag/status)
   await renderTripHeaders();     // trip headers above strip
 });
 
 /* --------------------------------------------------------------
-   2️⃣5️⃣  Photo upload helper (stores blob in Dexie)
+   2️⃣5️⃣ Photo upload helper (stores blob in Dexie)
    -------------------------------------------------------------- */
 async function handlePhotoUpload(file, waypointId) {
   const data = await file.arrayBuffer();
@@ -733,7 +723,7 @@ async function handlePhotoUpload(file, waypointId) {
 }
 
 /* --------------------------------------------------------------
-   2️⃣6️⃣  Timeline rendering (bottom strip)
+   2️⃣6️⃣ Timeline rendering (bottom strip)
    -------------------------------------------------------------- */
 async function renderTimeline({ filterTag = null, filterStatus = null } = {}) {
   const container = document.getElementById('timeline-strip');
@@ -786,7 +776,7 @@ async function renderTimeline({ filterTag = null, filterStatus = null } = {}) {
 }
 
 /* --------------------------------------------------------------
-   2️⃣7️⃣  Trip headers (city + year) above the timeline strip
+   2️⃣7️⃣ Trip headers (city + year) above the timeline strip
    -------------------------------------------------------------- */
 async function renderTripHeaders() {
   const container = document.getElementById('timeline-strip');
@@ -816,7 +806,7 @@ async function renderTripHeaders() {
 }
 
 /* --------------------------------------------------------------
-   2️⃣8️⃣  Timeline filter UI (tag & status)
+   2️⃣8️⃣ Timeline filter UI (tag & status)
    -------------------------------------------------------------- */
 function renderTimelineFilters() {
   const wrapper = document.createElement('div');
@@ -855,7 +845,7 @@ function renderTimelineFilters() {
 }
 
 /* --------------------------------------------------------------
-   2️⃣9️⃣  Category → query mapping for the Photon API (used by Explore)
+   2️⃣9️⃣ Category → query mapping for the Photon API (used by Explore)
    -------------------------------------------------------------- */
 const categoryQueries = {
   all: 'attraction',
