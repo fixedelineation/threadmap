@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#1a1a1a">
+  <title>ThreadMap</title>
+
+  <!-- Leaflet CSS (from CDN) -->
+  <link rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-sA+e2j9yG5v6kY4e5L6b+K8h2r9fV2YzK5/Gc+gV7Y8="
+        crossorigin=""/>
+
+  <!-- Your own CSS (optional) -->
+  <link rel="stylesheet" href="/style.css">
+
+  <!-- PWA manifest -->
+  <link rel="manifest" href="/manifest.webmanifest">
+
+  <!-- Favicon (optional – prevents 404) -->
+  <link rel="icon" href="/favicon.ico" type="image/x-icon">
+</head>
+<body style="margin:0; background:#1a1a1a; color:#fff; font-family:sans-serif;">
+
+  <!-- ---------- TOP CONTROLS ---------- -->
+  <div id="top-controls"
+       style="position:fixed; top:20px; left:20px; right:20px; z-index:1000;
+              display:flex; flex-direction:column; gap:10px;">
+    <div id="search-container"
+         style="display:flex; gap:8px; background:rgba(0,0,0,0.8);
+                padding:8px; border-radius:12px; border:1px solid #444;">
+      <input type="text" id="address-search"
+             placeholder="Search address or place..."
+             style="flex:1; background:none; border:none; color:#fff;
+                    padding:8px; font-size:14px; outline:none;">
+      <button id="btn-search"
+              style="background:#00D2FF; color:#000; border:none;
+                     padding:8px 15px; border-radius:8px;
+                     font-weight:bold; cursor:pointer;">Search</button>
+    </div>
+
+    <div style="display:flex; justify-content:space-between; gap:10px;">
+      <div id="trip-status-container"
+           style="background:rgba(0,0,0,0.8); padding:10px; border-radius:10px;
+                  color:#fff; border:1px solid #444; flex:1;">
+        <label style="font-size:10px; color:#888; display:block;">Trip Mode</label>
+        <select id="trip-status"
+                style="background:none; color:#fff; border:none; font-weight:bold;
+                       cursor:pointer; width:100%;">
+          <option value="active">🟢 Active Trip</option>
+          <option value="planned">📅 Planned Trip</option>
+          <option value="past">📁 Past Trips</option>
+        </select>
+      </div>
+
+      <div id="layer-control"
+           style="background:rgba(0,0,0,0.8); padding:10px; border-radius:10px;
+                  color:#fff; border:1px solid #444; flex:1;">
+        <label style="font-size:10px; color:#888; display:block;">Visit Layer</label>
+        <select id="layer-toggle"
+                style="background:none; color:#fff; border:none; cursor:pointer; width:100%;">
+          <option value="0">All</option>
+          <option value="1">1st Visit</option>
+          <option value="2">2nd Visit</option>
+          <option value="3">3rd+</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---------- MAP ---------- -->
+  <div id="map" style="height:70vh; width:100%;"></div>
+
+  <!-- ---------- BOTTOM TIMELINE ---------- -->
+  <div id="timeline-container"
+       style="position:fixed; bottom:0; left:0; right:0; height:30vh;
+              background:#2d2d2d; z-index:1000; border-top:1px solid #444;">
+    <div id="timeline-header"
+         style="padding:10px; display:flex; justify-content:space-between;
+                align-items:center; font-size:12px; color:#888;">
+      <span id="timeline-title">Your Journey</span>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <select id="explore-category"
+                style="background:#1a1a1a; color:#fff; border:1px solid #444;
+                       border-radius:5px; padding:4px; font-size:11px; cursor:pointer;">
+          <option value="all">🌟 All</option>
+          <option value="food">🍔 Food</option>
+          <option value="culture">🏛️ Culture</option>
+          <option value="nature">🌳 Nature</option>
+          <option value="shopping">🛍️ Shop</option>
+        </select>
+        <button id="explore-btn"
+                style="background:none; border:none; color:#F1C40F;
+                       cursor:pointer; font-weight:bold; font-size:12px;">Explore</button>
+        <button id="harvest-btn"
+                style="background:none; border:none; color:#00D2FF;
+                       cursor:pointer; font-size:11px;">Import Photos</button>
+      </div>
+    </div>
+    <div id="timeline"
+         style="display:flex; overflow-x:auto; padding:10px; gap:20px;"></div>
+  </div>
+
+  <!-- ---------- FAB (floating action button) ---------- -->
+  <button id="fab"
+          style="position:fixed; bottom:calc(30vh + 20px); right:20px;
+                 width:56px; height:56px; border-radius:50%;
+                 background:#00D2FF; border:none; font-size:24px;
+                 z-index:1000; cursor:pointer;">+</button>
+
+  <!-- ---------- ACTION MENU (appears after FAB click) ---------- -->
+  <div id="action-menu"
+       style="position:fixed; bottom:calc(30vh + 90px); right:20px;
+              background:#2d2d2d; border-radius:12px; display:none;
+              flex-direction:column; z-index:1000; min-width:180px;
+              overflow:hidden; border:1px solid #444;">
+    <button class="action-item" id="btn-drop-anchor"
+            style="padding:15px; background:none; border:none;
+                   color:#fff; text-align:left; cursor:pointer;">Drop Anchor</button>
+    <button class="action-item" id="btn-connect-mode"
+            style="padding:15px; background:none; border:none;
+                   color:#fff; text-align:left; cursor:pointer;">Connect Mode</button>
+  </div>
+
+  <!-- ---------- ADD ANCHOR MODAL ---------- -->
+  <div id="add-modal" class="modal"
+       style="display:none; position:fixed; top:0; left:0; right:0; bottom:0;
+              background:rgba(0,0,0,0.8); z-index:2000;
+              align-items:center; justify-content:center;">
+    <div class="modal-content"
+         style="background:#2d2d2d; padding:20px; border-radius:15px;
+                width:80%; max-width:400px; color:#fff;">
+      <h3 style="margin-bottom:15px;">Drop Anchor</h3>
+      <input type="hidden" id="add-lat">
+      <input type="hidden" id="add-lng">
+      <div style="margin:15px 0; display:flex; flex-direction:column; gap:10px;">
+        <div>
+          <label style="font-size:12px; color:#888;">Name/Place</label>
+          <input type="text" id="anchor-name"
+                 placeholder="e.g. The Golden Pasta"
+                 style="width:100%; padding:10px; background:#1a1a1a;
+                        color:#fff; border:1px solid #444; border-radius:5px;">
+        </div>
+        <div>
+          <label style="font-size:12px; color:#888;">Type</label>
+          <select id="anchor-type"
+                  style="width:100%; padding:10px; background:#1a1a1a;
+                         color:#fff; border:1px solid #444; border-radius:5px;">
+            <option value="hotel">Hotel</option>
+            <option value="restaurant">Restaurant</option>
+            <option value="attraction">Attraction</option>
+            <option value="transit">Transit</option>
+            <option value="photo_op">Photo Spot</option>
+            <option value="memory">Memory</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex; gap:10px;">
+        <button id="cancel-add"
+                style="flex:1; padding:10px; background:#444; color:#fff;
+                       border:none; border-radius:5px; cursor:pointer;">Cancel</button>
+        <button id="confirm-add"
+                style="flex:1; padding:10px; background:#00D2FF; color:#000;
+                       border:none; border-radius:5px; font-weight:bold;
+                       cursor:pointer;">Add to Map</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---------- CONNECT MODE MODAL ---------- -->
+  <div id="mode-modal" class="modal"
+       style="display:none; position:fixed; top:0; left:0; right:0; bottom:0;
+              background:rgba(0,0,0,0.8); z-index:2000;
+              align-items:center; justify-content:center;">
+    <div class="modal-content"
+         style="background:#2d2d2d; padding:20px; border-radius:15px;
+                width:80%; max-width:400px; color:#fff; text-align:center;">
+      <h3 style="margin-bottom:15px;">How did you get here?</h3>
+      <div class="mode-grid"
+           style="display:grid; grid-template-columns:repeat(3,1fr); gap:10px;">
+        <button class="mode-btn" data-mode="flight"
+                style="padding:15px; background:#1a1a1a; color:#fff; border:1px solid #444;
+                       border-radius:10px; cursor:pointer;">✈️<br>Flight</button>
+        <button class="mode-btn" data-mode="train"
+                style="padding:15px; background:#1a1a1a; color:#fff; border:1px solid #444;
+                       border-radius:10px; cursor:pointer;">🚂<br>Train</button>
+        <button class="mode-btn" data-mode="car"
+                style="padding:15px; background:#1a1a1a; color:#fff; border:1px solid #444;
+                       border-radius:10px; cursor:pointer;">🚗<br>Car</button>
+        <button class="mode-btn" data-mode="walk"
+                style="padding:15px; background:#1a1a1a; color:#fff; border:1px solid #444;
+                       border-radius:10px; cursor:pointer;">🚶<br>Walk</button>
+        <button class="mode-btn" data-mode="boat"
+                style="padding:15px; background:#1a1a1a; color:#fff; border:1px solid #444;
+                       border-radius:10px; cursor:pointer;">⛵<br>Boat</button>
+        <button class="mode-btn" data-mode="other"
+                style="padding:15px; background:#1a1a1a; color:#fff; border:1px solid #444;
+                       border-radius:10px; cursor:pointer;">❓<br>Other</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---------- DETAIL SHEET (side panel) ---------- -->
+  <div id="detail-sheet"
+       style="position:fixed; left:0; right:0; bottom:0; background:#2d2d2d;
+              border-radius:20px 20px 0 0; padding:24px; z-index:1000;
+              transform:translateY(100%); transition:transform 0.3s ease;
+              max-height:60vh; overflow-y:auto; color:#fff;">
+    <div class="sheet-handle"
+         style="width:40px; height:4px; background:#444; border-radius:2px;
+                margin:0 auto 20px;"></div>
+
+    <div id="layer-switcher"
+         style="display:flex; gap:8px; margin-bottom:15px; justify-content:center;"></div>
+
+    <input type="hidden" id="waypoint-id">
+    <h3 id="detail-name">Waypoint Details</h3>
+
+    <!-- Tags multi‑select -->
+    <div style="margin:10px 0;">
+      <label style="font-size:12px; color:#888;">Tags</label>
+      <select id="detail-tags" multiple
+              style="width:100%; background:#1a1a1a; color:#fff; border:1px solid #444;
+                     border-radius:5px; padding:5px;">
+        <option value="restaurant">Restaurant</option>
+        <option value="attraction">Attraction</option>
+        <option value="hotel">Hotel</option>
+        <option value="shop">Shop</option>
+        <option value="misc">Misc</option>
+      </select>
+    </div>
+
+    <!-- Status selector -->
+    <div style="margin:10px 0;">
+      <label style="font-size:12px; color:#888;">Status</label>
+      <select id="detail-status"
+              style="width:100%; background:#1a1a1a; color:#fff; border:1px solid #444;
+                     border-radius:5px; padding:5px;">
+        <option value="want">Want to go</option>
+        <option value="been">Been</option>
+      </select>
+    </div>
+
+    <!-- Rating (shown only when status = "been") -->
+    <div id="rating-section" style="margin:10px 0; display:none;">
+      <label style="font-size:12px; color:#888;">Rating</label>
+      <div id="rating-stars"
+           style="font-size:20px; color:#FFD700; cursor:pointer;">
+        ★★★★★
+      </div>
+    </div>
+
+    <label style="font-size:12px; color:#888;">Notes & Commentary</label>
+    <textarea id="detail-notes"
+              style="width:100%; height:80px; background:#1a1a1a; color:#fff;
+                     border:1px solid #444; border-radius:8px; padding:10px;
+                     margin-top:5px;"></textarea>
+    <button id="btn-save-notes"
+            style="background:#00D2FF; color:#000; border:none; padding:5px 10px;
+                   border-radius:5px; cursor:pointer; margin-top:5px;
+                   font-weight:bold;">Save Notes</button>
+
+    <div id="photo-grid"
+         style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px;
+                margin:16px 0;"></div>
+    <input type="file" id="photo-input" accept="image/*" style="display:none">
+    <button id="btn-add-photo"
+            style="width:100%; padding:12px; background:#00D2FF; color:#000;
+                   border:none; border-radius:8px; font-weight:bold;
+                   cursor:pointer;">Add Photo</button>
+
+    <button id="btn-delete-waypoint"
+            style="width:100%; padding:12px; background:#e74c3c; color:#fff;
+                   border:none; border-radius:8px; margin-top:8px;
+                   cursor:pointer; font-weight:bold;">Delete Waypoint</button>
+    <button id="close-sheet"
+            style="width:100%; padding:12px; background:#444; color:#fff;
+                   border:none; border-radius:8px; margin-top:8px;
+                   cursor:pointer; font-weight:bold;">Close</button>
+  </div>
+
+  <!-- ---------- TIMELINE STRIP (horizontal) ---------- -->
+  <div id="timeline-strip"
+       style="position:fixed; bottom:0; left:0; right:0; height:120px;
+              background:rgba(30,30,30,0.95); overflow-x:auto; overflow-y:hidden;
+              white-space:nowrap; border-top:1px solid #444; z-index:1000;
+              padding:8px;">
+    <!-- Items are injected by main.js -->
+  </div>
+
+  <!-- Passive toast (used for any message) -->
+  <div id="passive-toast"
+       style="position:fixed; top:20px; left:50%; transform:translateX(-50%) translateY(-100px);
+              background:rgba(0,0,0,0.9); color:#fff; padding:12px 24px;
+              border-radius:24px; z-index:2000; transition:transform 0.3s ease;
+              border:1px solid #444;"></div>
+
+  <!-- ---------- EXTERNAL LIBRARIES (CDN) ---------- -->
+  <!-- Dexie (IndexedDB wrapper) -->
+  <script src="https://cdn.jsdelivr.net/npm/dexie@3.2.4/dist/dexie.min.js"></script>
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-o9N1V+N5A0fM8GPD90eQKj2KzJ1Q4x6aK3Tt4X3Pe3M="
+          crossorigin=""></script>
+
+  <!-- ---------- YOUR APP LOGIC ---------- -->
+  <script type="module" src="/main.js"></script>
+</body>
+</html>

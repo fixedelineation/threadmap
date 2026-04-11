@@ -1,0 +1,874 @@
+// main.js – ES module (no build step required)
+
+import Dexie from 'dexie';
+
+// --------------------------------------------------------------
+// 1️⃣  Dexie DB definition (includes new fields)
+// --------------------------------------------------------------
+export const db = new Dexie('ThreadMapDB');
+
+db.version(3).stores({
+  trips: '++id, name, created, status',
+  waypoints: `
+    ++id,
+    tripId,
+    lat,
+    lng,
+    layer,
+    date,
+    type,
+    name,
+    tags,
+    status,
+    rating,
+    tripName
+  `,
+  strings: '++id, tripId, fromId, toId, mode, geometry',
+  photos: '++id, waypointId, date'
+});
+
+export function getDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371e3;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 +
+            Math.cos(lat1 * Math.PI / 180) *
+            Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/**
+ * Find all waypoints within `radiusMeters` of the given lat/lng.
+ */
+export async function findNearbyWaypoints(lat, lng, radiusMeters = 100) {
+  const all = await db.waypoints.toArray();
+  return all.filter(
+    wp => getDistance(lat, lng, wp.lat, wp.lng) <= radiusMeters
+  );
+}
+
+// --------------------------------------------------------------
+// 2️⃣  Helper to generate a human‑readable trip name (city + year)
+// --------------------------------------------------------------
+export async function generateTripName(lat, lng, dateObj) {
+  const year = dateObj.getFullYear();
+  try {
+    const resp = await fetch(
+      `https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}`
+    );
+    const data = await resp.json();
+    const city = data.city || data.state || data.country || null;
+    return city ? `${city} ${year}` : `Trip ${year}`;
+  } catch (_) {
+    return `Trip ${year}`;
+  }
+}
+
+// --------------------------------------------------------------
+// 3️⃣  Pin visual helper – colour based on primary tag
+// --------------------------------------------------------------
+export function getPinHtml(layer, tags = []) {
+  const tagColors = {
+    restaurant: '#E67E22',
+    attraction: '#3498DB',
+    hotel: '#9B59B6',
+    shop: '#F1C40F',
+    misc: '#E74C3C',
+    default: '#E74C3C'
+  };
+  const primaryTag = tags.find(t => tagColors[t]) || 'default';
+  const baseColor = tagColors[primaryTag];
+
+  const colors = [baseColor];
+  let rings = '';
+  for (let i = 0; i < layer; i++) {
+    const size = 20 + i * 8;
+    rings += `<div class="pin-ring" style="
+      width:${size}px;
+      height:${size}px;
+      border-color:${colors[i % colors.length]};
+      left:${-size / 2}px;
+      top:${-size / 2}px;
+      opacity:${1 - i * 0.2};
+    "></div>`;
+  }
+  return `<div class="pin-container">${rings}<div class="pin-core"></div></div>`;
+}
+
+// --------------------------------------------------------------
+// 4️⃣  Global state & map init
+// --------------------------------------------------------------
+let map;
+export const state = {
+  selectedWaypoint: null,
+  markers: {},      // id → Leaflet marker
+  lines: {},        // "from-to" → polyline
+  poiMarkers: []    // temporary POI markers from Explore
+};
+
+export function initMap() {
+  const mapEl = document.getElementById('map');
+  if (!mapEl) return null;
+
+  map = L.map('map', { zoomControl: false, attributionControl: false })
+    .setView([48.8566, 2.3522], 13);
+
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png')
+    .addTo(map);
+
+  L.control.zoom({ position: 'topright' }).addTo(map);
+
+  // Re‑render strings when zoom changes (so arcs become visible/invisible)
+  map.on('zoomend', () => renderStrings());
+
+  // Long‑press → Add Anchor modal
+  let pressTimer;
+  map.on('mousedown', e => {
+    pressTimer = setTimeout(() => showAddModal(e.latlng), 800);
+  });
+  map.on('mouseup', () => clearTimeout(pressTimer));
+  map.on('click', e => {
+    if (e.originalEvent.target.id === 'map') deselectAll();
+  });
+
+  loadExistingData();
+  return map;
+}
+
+function deselectAll() {
+  state.selectedWaypoint = null;
+  Object.values(state.markers).forEach(m => m.getElement()?.classList.remove('selected'));
+}
+
+// --------------------------------------------------------------
+// 5️⃣  OSRM routing (used when connecting two waypoints)
+// --------------------------------------------------------------
+async function fetchRoute(from, to, mode) {
+  const style = travelStyles[mode];
+  if (!style.profile) return null;
+  try {
+    const url = `https://router.project-osrm.org/route/v1/${style.profile}/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    return data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+  } catch (e) {
+    console.error('Routing error:', e);
+    return null;
+  }
+}
+
+// --------------------------------------------------------------
+// 6️⃣  Travel‑mode styling (used for OSRM lines)
+// --------------------------------------------------------------
+const travelStyles = {
+  flight: { color: '#00D2FF', dashArray: '10, 10', weight: 2, profile: null },
+  train:  { color: '#9B59B6', dashArray: '5, 15', weight: 3, profile: 'car' },
+  car:    { color: '#F1C40F', weight: 4, opacity: 0.8, profile: 'driving' },
+  walk:   { color: '#2ECC71', dashArray: '2, 8', weight: 2, profile: 'walking' },
+  boat:   { color: '#3498DB', dashArray: '15, 10', weight: 2, profile: null },
+  other:  { color: '#FFFFFF', weight: 2, profile: null }
+};
+
+// --------------------------------------------------------------
+// 7️⃣  Add a waypoint (called from UI & from POI‑save)
+// --------------------------------------------------------------
+export async function addWaypoint(latlng, data) {
+  const {
+    name = '',
+    type = '',
+    layer,
+    tags = [],
+    status = 'want',
+    rating = null
+  } = data;
+
+  const tripName = await generateTripName(latlng.lat, latlng.lng, new Date());
+
+  const id = await db.waypoints.add({
+    tripId: 1,
+    lat: latlng.lat,
+    lng: latlng.lng,
+    layer,
+    date: new Date(),
+    type,
+    name,
+    tags,
+    status,
+    rating,
+    tripName
+  });
+
+  const marker = L.marker(latlng, {
+    icon: L.divIcon({
+      className: 'custom-pin',
+      html: getPinHtml(layer, tags),
+      iconSize: [40, 40],
+      iconAnchor: [20, 20]
+    })
+  }).addTo(map);
+
+  marker.on('click', e => {
+    L.DomEvent.stopPropagation(e);
+    handleWaypointClick(id, marker);
+  });
+
+  state.markers[id] = marker;
+  return id;
+}
+
+// --------------------------------------------------------------
+// 8️⃣  Click handling on existing way‑points
+// --------------------------------------------------------------
+async function handleWaypointClick(id, marker) {
+  if (state.selectedWaypoint && state.selectedWaypoint !== id) {
+    await connectWaypoints(state.selectedWaypoint, id);
+    deselectAll();
+  } else {
+    deselectAll();
+    state.selectedWaypoint = id;
+    marker.getElement().classList.add('selected');
+    showWaypointDetails(id);
+  }
+}
+
+// --------------------------------------------------------------
+// 9️⃣  Connect two way‑points (creates a line)
+// --------------------------------------------------------------
+async function connectWaypoints(fromId, toId) {
+  const mode = await showModeSelector();
+  if (!mode) return;
+
+  const from = await db.waypoints.get(fromId);
+  const to   = await db.waypoints.get(toId);
+  const geometry = await fetchRoute(from, to, mode);
+  await db.strings.add({ tripId: 1, fromId, toId, mode, geometry });
+  renderStrings();
+}
+
+// --------------------------------------------------------------
+// 🔟  Render all strings (lines) – macro vs. micro view
+// --------------------------------------------------------------
+async function renderStrings() {
+  Object.values(state.lines).forEach(l => map.removeLayer(l));
+  state.lines = {};
+
+  const zoom = map.getZoom();
+  const strings = await db.strings.toArray();
+
+  for (const s of strings) {
+    const from = await db.waypoints.get(s.fromId);
+    const to   = await db.waypoints.get(s.toId);
+    if (!from || !to) continue;
+
+    const style = travelStyles[s.mode] || travelStyles.other;
+    const path = (zoom > 12 && s.geometry)
+      ? s.geometry
+      : (s.mode === 'flight' ? generateArc([from, to]) : [[from.lat, from.lng], [to.lat, to.lng]]);
+
+    const line = L.polyline(path, { ...style, className: `string-line string-${s.mode}` }).addTo(map);
+    state.lines[`${s.fromId}-${s.toId}`] = line;
+  }
+}
+
+// --------------------------------------------------------------
+// 1️⃣1️⃣  Helper for a curved flight‑arc
+// --------------------------------------------------------------
+function generateArc(pts) {
+  const p1 = L.latLng(pts[0].lat, pts[0].lng);
+  const p2 = L.latLng(pts[1].lat, pts[1].lng);
+  const mid = L.latLng((p1.lat + p2.lat) / 2, (p1.lng + p2.lng) / 2);
+  mid.lat += 0.2; // give the arc a little height
+  return [p1, mid, p2];
+}
+
+// --------------------------------------------------------------
+// 1️⃣2️⃣  Show the “Add Anchor” modal (long‑press)
+// --------------------------------------------------------------
+export function showAddModal(latlng) {
+  const modal = document.getElementById('add-modal');
+  modal.style.display = 'flex';
+  document.getElementById('add-lat').value = latlng.lat;
+  document.getElementById('add-lng').value = latlng.lng;
+}
+
+// --------------------------------------------------------------
+// 1️⃣3️⃣  Show details for a saved waypoint (side‑sheet)
+// --------------------------------------------------------------
+export async function showWaypointDetails(id) {
+  const sheet = document.getElementById('detail-sheet');
+  sheet.style.transform = 'translateY(0)';
+  document.getElementById('waypoint-id').value = id;
+
+  const wp = await db.waypoints.get(id);
+
+  // Gather all visits that share the exact lat/lng (for layered UI)
+  const allVisits = await db.waypoints
+    .filter(w => w.lat === wp.lat && w.lng === wp.lng)
+    .toArray()
+    .then(res => res.sort((a, b) => a.layer - b.layer));
+
+  const switcher = document.getElementById('layer-switcher');
+  switcher.innerHTML = '';
+  allVisits.forEach(visit => {
+    const btn = document.createElement('button');
+    btn.innerText = `Visit ${visit.layer}`;
+    btn.style.cssText = `
+      padding:5px 10px;
+      border-radius:10px;
+      border:1px solid #444;
+      background:${visit.id === id ? '#00D2FF' : '#1a1a1a'};
+      color:${visit.id === id ? 'black' : 'white'};
+      cursor:pointer;
+      font-size:10px;
+    `;
+    btn.onclick = () => {
+      document.getElementById('waypoint-id').value = visit.id;
+      showWaypointDetails(visit.id);
+    };
+    switcher.appendChild(btn);
+  });
+
+  document.getElementById('detail-name').innerText = wp.name || 'Unnamed Spot';
+  document.getElementById('detail-notes').value = wp.notes || '';
+  document.getElementById('photo-grid').innerHTML = '';
+  loadPhotosForWaypoint(id);
+
+  // ---- Populate tags, status, rating UI ----
+  const tagsSelect = document.getElementById('detail-tags');
+  Array.from(tagsSelect.options).forEach(opt => {
+    opt.selected = wp.tags?.includes(opt.value);
+  });
+  document.getElementById('detail-status').value = wp.status || 'want';
+
+  const ratingSection = document.getElementById('rating-section');
+  ratingSection.style.display = wp.status === 'been' ? 'block' : 'none';
+
+  const starsDiv = document.getElementById('rating-stars');
+  const rating = wp.rating || 0;
+  starsDiv.innerHTML = '★★★★★'.split('').map((star, i) => {
+    return `<span data-index="${i+1}" style="opacity:${i < rating ? 1 : 0.3}">★</span>`;
+  }).join('');
+
+  starsDiv.onclick = async e => {
+    const span = e.target.closest('span');
+    if (!span) return;
+    const newRating = parseInt(span.dataset.index);
+    await db.waypoints.update(id, { rating: newRating });
+    // refresh UI
+    showWaypointDetails(id);
+  };
+}
+
+// --------------------------------------------------------------
+// 1️⃣4️⃣  Load photos for a waypoint (grid view)
+// --------------------------------------------------------------
+async function loadPhotosForWaypoint(id) {
+  const photos = await db.photos.where('waypointId').equals(parseInt(id)).toArray();
+  const grid = document.getElementById('photo-grid');
+  photos.forEach(p => {
+    const url = URL.createObjectURL(p.data);
+    const img = document.createElement('img');
+    img.src = url;
+    grid.appendChild(img);
+  });
+}
+
+// --------------------------------------------------------------
+// 1️⃣5️⃣  Save a POI discovered via the Explore button
+// --------------------------------------------------------------
+export async function savePOIAsWaypoint(lat, lng, name, type, category = 'all') {
+  try {
+    console.log('🟢 savePOIAsWaypoint →', { lat, lng, name, type, category });
+
+    const defaultTagMap = {
+      food: 'restaurant',
+      culture: 'attraction',
+      nature: 'attraction',
+      shopping: 'shop',
+      all: 'misc'
+    };
+    const defaultTag = defaultTagMap[category] || 'misc';
+
+    const nearby = await findNearbyWaypoints(lat, lng, 50);
+    const layer = nearby.length > 0 ? Math.max(...nearby.map(n => n.layer)) + 1 : 1;
+
+    const waypointId = await addWaypoint(
+      { lat, lng },
+      {
+        name,
+        type,
+        layer,
+        tags: [defaultTag],
+        status: 'want',
+        rating: null
+      }
+    );
+    showToast(`✅ Saved “${name || 'POI'}” as ${defaultTag}`);
+    return waypointId;
+  } catch (err) {
+    console.error('❌ savePOIAsWaypoint FAILED:', err);
+    showToast('❌ Failed to save POI – see console');
+    throw err;
+  }
+}
+
+// --------------------------------------------------------------
+// 1️⃣6️⃣  Explore nearby places (Photon API) – now with a save button
+// --------------------------------------------------------------
+export async function exploreArea(category = 'all') {
+  const btn = document.getElementById('explore-btn');
+  const originalText = btn.innerText;
+  btn.innerText = '⏳ Searching...';
+  btn.disabled = true;
+
+  // clear previous POI markers
+  state.poiMarkers.forEach(m => map.removeLayer(m));
+  state.poiMarkers = [];
+
+  const center = map.getCenter();
+  const query = categoryQueries[category] || categoryQueries.all;
+  const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&lat=${center.lat}&lon=${center.lng}&limit=20`;
+
+  try {
+    const resp = await fetch(url);
+    const data = await resp.json();
+
+    if (!data.features || data.features.length === 0) {
+      alert(`No ${category} found here.`);
+      return;
+    }
+
+    data.features.forEach(feature => {
+      const [lon, lat] = feature.geometry.coordinates;
+      const props = feature.properties;
+      const color = categoryColors[category] || '#F1C40F';
+
+      const marker = L.marker([lat, lon], {
+        icon: L.divIcon({
+          className: 'poi-pin',
+          html: `<div style="
+            background:${color};
+            width:12px;height:12px;
+            border-radius:50%;
+            border:2px solid white;
+            box-shadow:0 0 5px rgba(0,0,0,0.5);
+          "></div>`,
+          iconSize: [12, 12]
+        })
+      }).addTo(map);
+
+      const name = props.name || 'Unnamed';
+      const type = props.category || 'POI';
+
+      // Popup HTML – includes a class‑based Save button
+      const popupHTML = `
+        <div style="color:black; font-family:sans-serif;">
+          <b style="color:${color}">${name}</b><br>
+          <span style="color:gray; font-size:11px;">${type}</span><br>
+          <button class="save-poi-btn" style="
+            margin-top:8px;
+            background:#00D2FF;
+            border:none;
+            padding:6px 10px;
+            border-radius:4px;
+            cursor:pointer;
+            font-weight:bold;
+            width:100%;">⭐ Save to Trip</button>
+        </div>
+      `;
+      marker.bindPopup(popupHTML);
+
+      // Attach click handler when popup opens
+      marker.on('popupopen', () => {
+        const btn = document.querySelector('.leaflet-popup .save-poi-btn');
+        if (!btn) {
+          console.warn('⚠️ Save button not found in popup');
+          return;
+        }
+        btn.onclick = async () => {
+          console.log('🔘 Save POI clicked →', { lat, lng: lon, name, type, category });
+          try {
+            await savePOIAsWaypoint(lat, lon, name, type, category);
+            marker.closePopup();
+          } catch (e) {
+            // errors already handled inside savePOIAsWaypoint
+          }
+        };
+      });
+
+      state.poiMarkers.push(marker);
+    });
+  } catch (e) {
+    console.error('Explore error:', e);
+    alert('Search engine unavailable – try again later.');
+  } finally {
+    btn.innerText = originalText;
+    btn.disabled = false;
+  }
+}
+
+// --------------------------------------------------------------
+// 1️⃣7️⃣  Mode selector (modal that appears when you connect two pins)
+// --------------------------------------------------------------
+async function showModeSelector() {
+  return new Promise(resolve => {
+    const modal = document.getElementById('mode-modal');
+    modal.style.display = 'flex';
+
+    const handler = e => {
+      const btn = e.target.closest('[data-mode]');
+      if (btn) {
+        modal.style.display = 'none';
+        modal.removeEventListener('click', handler);
+        resolve(btn.dataset.mode);
+      }
+    };
+    modal.addEventListener('click', handler);
+  });
+}
+
+// --------------------------------------------------------------
+// 2️⃣0️⃣  Remove a waypoint (called from the side‑sheet delete button)
+// --------------------------------------------------------------
+export async function removeWaypointFromMap(id) {
+  const marker = state.markers[id];
+  if (marker) {
+    map.removeLayer(marker);
+    delete state.markers[id];
+  }
+  Object.entries(state.lines).forEach(([key, line]) => {
+    const [fromId, toId] = key.split('-');
+    if (fromId == id || toId == id) {
+      map.removeLayer(line);
+      delete state.lines[key];
+    }
+  });
+}
+
+// --------------------------------------------------------------
+// 2️⃣1️⃣  Export the Leaflet map instance (used by other modules)
+// --------------------------------------------------------------
+export { map };
+
+// --------------------------------------------------------------
+// 2️⃣2️⃣  Toast helper – reusable across the app
+// --------------------------------------------------------------
+function showToast(message, duration = 3000) {
+  let toast = document.getElementById('passive-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'passive-toast';
+    toast.style.position = 'fixed';
+    toast.style.top = '20px';
+    toast.style.left = '50%';
+    toast.style.transform = 'translateX(-50%) translateY(-100px)';
+    toast.style.background = 'rgba(0,0,0,0.9)';
+    toast.style.color = 'white';
+    toast.style.padding = '12px 24px';
+    toast.style.borderRadius = '24px';
+    toast.style.zIndex = '2000';
+    toast.style.transition = 'transform 0.3s ease';
+    toast.style.border = '1px solid #444';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = message;
+  toast.classList.add('show');
+  toast.style.transform = 'translateX(-50%) translateY(0)';
+
+  setTimeout(() => {
+    toast.style.transform = 'translateX(-50%) translateY(-100px)';
+    toast.classList.remove('show');
+  }, duration);
+}
+
+// --------------------------------------------------------------
+// 2️⃣3️⃣  Expose the detail‑sheet function globally (timeline uses it)
+// --------------------------------------------------------------
+window.showWaypointDetails = showWaypointDetails;
+
+// --------------------------------------------------------------
+// 2️⃣4️⃣  UI helpers & event wiring (run after DOM is ready)
+// --------------------------------------------------------------
+document.addEventListener('DOMContentLoaded', async () => {
+  // Initialise map
+  initMap();
+
+  // ----- SEARCH -----
+  document.getElementById('btn-search').addEventListener('click', async () => {
+    const query = document.getElementById('address-search').value;
+    if (query) {
+      // Simple Nominatim lookup (no API key)
+      const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+      const results = await resp.json();
+      if (results[0]) {
+        const lat = parseFloat(results[0].lat);
+        const lon = parseFloat(results[0].lon);
+        map.setView([lat, lon], 14);
+      } else {
+        alert('Location not found.');
+      }
+    }
+  });
+  document.getElementById('address-search').addEventListener('keypress', e => {
+    if (e.key === 'Enter') {
+      document.getElementById('btn-search').click();
+    }
+  });
+
+  // ----- FAB & Action Menu -----
+  document.getElementById('fab').addEventListener('click', () => {
+    const menu = document.getElementById('action-menu');
+    menu.style.display = menu.style.display === 'flex' ? 'none' : 'flex';
+  });
+  document.getElementById('btn-drop-anchor').addEventListener('click', () => {
+    document.getElementById('add-modal').style.display = 'flex';
+    document.getElementById('action-menu').style.display = 'none';
+  });
+  document.getElementById('btn-connect-mode').addEventListener('click', async () => {
+    if (state.selectedWaypoint) {
+      await showModeSelector(); // just to open the modal; actual connection happens on second click
+    } else {
+      alert('Select a waypoint first.');
+    }
+  });
+
+  // ----- Add Modal -----
+  document.getElementById('confirm-add').addEventListener('click', async () => {
+    const lat = parseFloat(document.getElementById('add-lat').value);
+    const lng = parseFloat(document.getElementById('add-lng').value);
+    const name = document.getElementById('anchor-name').value;
+    const type = document.getElementById('anchor-type').value;
+
+    const nearby = await findNearbyWaypoints(lat, lng, 50);
+    const layer = nearby.length > 0 ? Math.max(...nearby.map(n => n.layer)) + 1 : 1;
+
+    await addWaypoint(
+      { lat, lng },
+      { name, type, layer, tags: [], status: 'want', rating: null }
+    );
+    document.getElementById('add-modal').style.display = 'none';
+    renderTimeline();          // refresh timeline strip
+    renderTripHeaders();       // refresh trip headers
+  });
+  document.getElementById('cancel-add').addEventListener('click', () => {
+    document.getElementById('add-modal').style.display = 'none';
+  });
+
+  // ----- Explore -----
+  document.getElementById('explore-btn').addEventListener('click', () => {
+    const cat = document.getElementById('explore-category').value;
+    exploreArea(cat);
+  });
+
+  // ----- Harvest photos (optional placeholder) -----
+  document.getElementById('harvest-btn').addEventListener('click', async () => {
+    alert('Photo‑harvest not implemented in this static version.');
+  });
+
+  // ----- Photo upload from detail sheet -----
+  document.getElementById('photo-input').addEventListener('change', e => {
+    const wpId = document.getElementById('waypoint-id').value;
+    if (wpId && e.target.files[0]) {
+      handlePhotoUpload(e.target.files[0], wpId);
+    }
+  });
+  document.getElementById('btn-add-photo').addEventListener('click', () => {
+    document.getElementById('photo-input').click();
+  });
+
+  // ----- Delete waypoint button -----
+  document.getElementById('btn-delete-waypoint').addEventListener('click', async () => {
+    const wpId = parseInt(document.getElementById('waypoint-id').value);
+    if (!wpId) return;
+    if (confirm('Erase this memory?')) {
+      await db.waypoints.delete(wpId);
+      await db.photos.where('waypointId').equals(wpId).delete();
+      await db.strings.where('fromId').equals(wpId).delete();
+      await db.strings.where('toId').equals(wpId).delete();
+      await removeWaypointFromMap(wpId);
+      document.getElementById('detail-sheet').style.transform = 'translateY(100%)';
+      renderTimeline();
+      renderTripHeaders();
+    }
+  });
+
+  // ----- Close detail sheet -----
+  document.getElementById('close-sheet').addEventListener('click', () => {
+    document.getElementById('detail-sheet').style.transform = 'translateY(100%)';
+  });
+
+  // ----- Layer filter -----
+  document.getElementById('layer-toggle').addEventListener('change', e => {
+    const layer = parseInt(e.target.value);
+    Object.entries(state.markers).forEach(([id, marker]) => {
+      db.waypoints.get(parseInt(id)).then(wp => {
+        if (layer === 0 || wp.layer === layer) marker.setOpacity(1);
+        else marker.setOpacity(0.2);
+      });
+    });
+  });
+
+  // ----- Trip status visual filter (optional) -----
+  document.getElementById('trip-status').addEventListener('change', e => {
+    const status = e.target.value;
+    document.getElementById('map').style.filter =
+      status === 'planned' ? 'grayscale(0.5) opacity(0.8)' : 'none';
+  });
+
+  // ----- Initial load of timeline -----
+  await renderTimeline();        // timeline strip at bottom
+  renderTimelineFilters();       // filter UI (tag/status)
+  await renderTripHeaders();     // trip headers above strip
+});
+
+/* --------------------------------------------------------------
+   2️⃣5️⃣  Photo upload helper (stores blob in Dexie)
+   -------------------------------------------------------------- */
+async function handlePhotoUpload(file, waypointId) {
+  const data = await file.arrayBuffer();
+  await db.photos.add({ waypointId: parseInt(waypointId), date: new Date(), data: new Blob([data]) });
+  // Refresh photo grid
+  loadPhotosForWaypoint(waypointId);
+}
+
+/* --------------------------------------------------------------
+   2️⃣6️⃣  Timeline rendering (bottom strip)
+   -------------------------------------------------------------- */
+async function renderTimeline({ filterTag = null, filterStatus = null } = {}) {
+  const container = document.getElementById('timeline-strip');
+  container.innerHTML = '';
+
+  // Build query
+  let collection = db.waypoints.orderBy('date');
+  if (filterTag) collection = collection.filter(wp => wp.tags?.includes(filterTag));
+  if (filterStatus) collection = collection.filter(wp => wp.status === filterStatus);
+
+  const waypoints = await collection.toArray();
+
+  waypoints.forEach(wp => {
+    const item = document.createElement('div');
+    item.className = 'timeline-item';
+    item.style.display = 'inline-block';
+    item.style.width = '80px';
+    item.style.marginRight = '12px';
+    item.style.cursor = 'pointer';
+    item.style.textAlign = 'center';
+
+    // Pin preview (same visual as on the map)
+    const pin = document.createElement('div');
+    pin.innerHTML = getPinHtml(wp.layer, wp.tags);
+    pin.style.width = '40px';
+    pin.style.height = '40px';
+    pin.style.margin = '0 auto';
+    item.appendChild(pin);
+
+    const title = document.createElement('div');
+    title.textContent = wp.name || wp.type || 'Untitled';
+    title.style.fontSize = '11px';
+    title.style.color = '#fff';
+    title.style.marginTop = '4px';
+    item.appendChild(title);
+
+    const date = document.createElement('div');
+    date.textContent = new Date(wp.date).toLocaleDateString();
+    date.style.fontSize = '10px';
+    date.style.color = '#aaa';
+    item.appendChild(date);
+
+    // Click opens the side‑sheet for editing
+    item.onclick = () => {
+      window.showWaypointDetails(wp.id);
+    };
+
+    container.appendChild(item);
+  });
+}
+
+/* --------------------------------------------------------------
+   2️⃣7️⃣  Trip headers (city + year) above the timeline strip
+   -------------------------------------------------------------- */
+async function renderTripHeaders() {
+  const container = document.getElementById('timeline-strip');
+  // Remove any existing headers
+  const oldHeaders = container.querySelectorAll('.trip-header');
+  oldHeaders.forEach(h => h.remove());
+
+  const distinctNames = await db.waypoints
+    .orderBy('date')
+    .uniqueKeys('tripName')
+    .then(names => names.filter(Boolean));
+
+  distinctNames.forEach(name => {
+    const header = document.createElement('div');
+    header.className = 'trip-header';
+    header.textContent = name;
+    header.style.position = 'absolute';
+    header.style.left = '0';
+    header.style.top = '-20px';
+    header.style.fontSize = '12px';
+    header.style.color = '#fff';
+    header.style.background = 'rgba(0,0,0,0.6)';
+    header.style.padding = '2px 6px';
+    header.style.borderRadius = '4px';
+    container.appendChild(header);
+  });
+}
+
+/* --------------------------------------------------------------
+   2️⃣8️⃣  Timeline filter UI (tag & status)
+   -------------------------------------------------------------- */
+function renderTimelineFilters() {
+  const wrapper = document.createElement('div');
+  wrapper.style.position = 'fixed';
+  wrapper.style.bottom = '130px';
+  wrapper.style.right = '20px';
+  wrapper.style.zIndex = '1000';
+  wrapper.style.background = 'rgba(0,0,0,0.7)';
+  wrapper.style.padding = '8px';
+  wrapper.style.borderRadius = '8px';
+
+  const tagSelect = document.createElement('select');
+  const tagOptions = ['', 'restaurant', 'attraction', 'hotel', 'shop', 'misc'];
+  tagOptions.forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t;
+    opt.textContent = t ? t : 'All tags';
+    tagSelect.appendChild(opt);
+  });
+  tagSelect.onchange = () => renderTimeline({ filterTag: tagSelect.value });
+
+  const statusSelect = document.createElement('select');
+  const statusOptions = ['', 'want', 'been'];
+  statusOptions.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s;
+    opt.textContent = s ? s : 'All status';
+    statusSelect.appendChild(opt);
+  });
+  statusSelect.onchange = () => renderTimeline({ filterStatus: statusSelect.value });
+
+  wrapper.appendChild(tagSelect);
+  wrapper.appendChild(document.createTextNode(' '));
+  wrapper.appendChild(statusSelect);
+  document.body.appendChild(wrapper);
+}
+
+/* --------------------------------------------------------------
+   2️⃣9️⃣  Category → query mapping for the Photon API (used by Explore)
+   -------------------------------------------------------------- */
+const categoryQueries = {
+  all: 'attraction',
+  food: 'restaurant',
+  culture: 'museum',
+  nature: 'park',
+  shopping: 'shop'
+};
+
+const categoryColors = {
+  all: '#F1C40F',
+  food: '#E67E22',
+  culture: '#3498DB',
+  nature: '#2ECC71',
+  shopping: '#9B59B6'
+};

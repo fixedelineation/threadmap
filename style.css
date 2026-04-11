@@ -1,0 +1,26 @@
+/* style.css – minimal extra styling */
+
+html, body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+/* Make the Leaflet default marker icons invisible (we use custom pins) */
+.leaflet-container .leaflet-marker-icon {
+  display: none;
+}
+
+/* Optional: smoother scroll for the timeline strip */
+#timeline-strip {
+  scroll-behavior: smooth;
+}
+
+/* Simple hover effect for the POI pins */
+.poi-pin div {
+  transition: transform 0.2s;
+}
+.poi-pin:hover div {
+  transform: scale(1.5);
+  background: #fff !important;
+}
