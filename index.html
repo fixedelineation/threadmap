@@ -1,308 +1,213 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport"
-        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="theme-color" content="#1a1a1a">
-  <title>ThreadMap</title>
-
-  <!-- Leaflet CSS – **no integrity attribute** -->
-  <link rel="stylesheet"
-        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-
-  <!-- Your own CSS (optional) -->
-  <link rel="stylesheet" href="/style.css">
-
-  <!-- PWA manifest (served from repo root) -->
-  <link rel="manifest" href="/manifest.webmanifest">
-
-  <!-- Favicon – prevents 404 -->
-  <link rel="icon" href="/favicon.ico" type="image/x-icon">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0a0a0f">
+<title>ThreadMaps</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/styles-new.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+<script src="https://unpkg.com/dexie@3.2.4" defer></script>
 </head>
-<body style="margin:0; background:#1a1a1a; color:#fff; font-family:sans-serif;">
-
-  <!-- ---------- TOP CONTROLS ---------- -->
-  <div id="top-controls"
-       style="position:fixed; top:20px; left:20px; right:20px; z-index:1000;
-              display:flex; flex-direction:column; gap:10px;">
-    <div id="search-container"
-         style="display:flex; gap:8px; background:rgba(0,0,0,0.8);
-                padding:8px; border-radius:12px; border:1px solid #444;">
-      <input type="text" id="address-search"
-             placeholder="Search address or place..."
-             style="flex:1; background:none; border:none; color:#fff;
-                    padding:8px; font-size:14px; outline:none;">
-      <button id="btn-search"
-              style="background:#00D2FF; color:#000; border:none;
-                     padding:8px 15px; border-radius:8px;
-                     font-weight:bold; cursor:pointer;">Search</button>
-    </div>
-
-    <div style="display:flex; justify-content:space-between; gap:10px;">
-      <div id="trip-status-container"
-           style="background:rgba(0,0,0,0.8); padding:10px; border-radius:10px;
-                  color:#fff; border:1px solid #444; flex:1;">
-        <label style="font-size:10px; color:#888; display:block;">Trip Mode</label>
-        <select id="trip-status"
-                style="background:none; color:#fff; border:none; font-weight:bold;
-                       cursor:pointer; width:100%;">
-          <option value="active">🟢 Active Trip</option>
-          <option value="planned">📅 Planned Trip</option>
-          <option value="past">📁 Past Trips</option>
-        </select>
-      </div>
-
-      <div id="layer-control"
-           style="background:rgba(0,0,0,0.8); padding:10px; border-radius:10px;
-                  color:#fff; border:1px solid #444; flex:1;">
-        <label style="font-size:10px; color:#888; display:block;">Visit Layer</label>
-        <select id="layer-toggle"
-                style="background:none; color:#fff; border:none; cursor:pointer; width:100%;">
-          <option value="0">All</option>
-          <option value="1">1st Visit</option>
-          <option value="2">2nd Visit</option>
-          <option value="3">3rd+</option>
-        </select>
-      </div>
-    </div>
+<body>
+<!-- Header -->
+<header id="appHeader" class="app-header">
+  <div class="header-left">
+    <button class="icon-btn" id="menuBtn" onclick="toggleSidebar()" title="Menu">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+    <span class="app-logo">Thread<span class="logo-accent">Maps</span></span>
   </div>
-
-  <!-- ---------- MAP ---------- -->
-  <div id="map" style="height:70vh; width:100%;"></div>
-
-  <!-- ---------- BOTTOM TIMELINE ---------- -->
-  <div id="timeline-container"
-       style="position:fixed; bottom:0; left:0; right:0; height:30vh;
-              background:#2d2d2d; z-index:1000; border-top:1px solid #444;">
-    <div id="timeline-header"
-         style="padding:10px; display:flex; justify-content:space-between;
-                align-items:center; font-size:12px; color:#888;">
-      <span id="timeline-title">Your Journey</span>
-      <div style="display:flex; gap:8px; align-items:center;">
-        <select id="explore-category"
-                style="background:#1a1a1a; color:#fff; border:1px solid #444;
-                       border-radius:5px; padding:4px; font-size:11px; cursor:pointer;">
-          <option value="all">🌟 All</option>
-          <option value="food">🍔 Food</option>
-          <option value="culture">🏛️ Culture</option>
-          <option value="nature">🌳 Nature</option>
-          <option value="shopping">🛍️ Shop</option>
-        </select>
-        <button id="explore-btn"
-                style="background:none; border:none; color:#F1C40F;
-                       cursor:pointer; font-weight:bold; font-size:12px;">Explore</button>
-        <button id="harvest-btn"
-                style="background:none; border:none; color:#00D2FF;
-                       cursor:pointer; font-size:11px;">Import Photos</button>
-      </div>
+  <div class="header-center">
+    <div class="search-wrap">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" id="globalSearch" placeholder="Search trips, pins..." autocomplete="off">
+      <button class="search-clear" id="searchClear" style="display:none" onclick="clearSearch()">&times;</button>
     </div>
-    <div id="timeline"
-         style="display:flex; overflow-x:auto; padding:10px; gap:20px;"></div>
+    <div id="searchResults" class="search-results"></div>
   </div>
-
-  <!-- ---------- FAB ---------- -->
-  <button id="fab"
-          style="position:fixed; bottom:calc(30vh + 20px); right:20px;
-                 width:56px; height:56px; border-radius:50%;
-                 background:#00D2FF; border:none; font-size:24px;
-                 z-index:1000; cursor:pointer;">+</button>
-
-  <!-- ---------- ACTION MENU ---------- -->
-  <div id="action-menu"
-       style="position:fixed; bottom:calc(30vh + 90px); right:20px;
-              background:#2d2d2d; border-radius:12px; display:none;
-              flex-direction:column; z-index:1000; min-width:180px;
-              overflow:hidden; border:1px solid #444;">
-    <button class="action-item" id="btn-drop-anchor"
-            style="padding:15px; background:none; border:none;
-                   color:#fff; text-align:left; cursor:pointer;">Drop Anchor</button>
-    <button class="action-item" id="btn-connect-mode"
-            style="padding:15px; background:none; border:none;
-                   color:#fff; text-align:left; cursor:pointer;">Connect Mode</button>
+  <div class="header-right">
+    <button class="icon-btn sync-status" id="syncBtn" onclick="openSyncModal()" title="Cloud sync">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 0 1-9 9m0 0a9 9 0 0 1-9-9m9 9V3m0 0L8 8m4-5l4 5"/></svg>
+      <span id="syncLabel">Local</span>
+    </button>
+    <button class="icon-btn" id="shareBtn" onclick="openShareModal()" title="Share trip">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+    </button>
+    <button class="icon-btn" id="themeBtn" onclick="toggleTheme()" title="Toggle theme">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/></svg>
+    </button>
+    <button class="icon-btn" id="settingsBtn" onclick="openSettings()" title="Settings">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.82 1 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
   </div>
-
-  <!-- ---------- ADD ANCHOR MODAL ---------- -->
-  <div id="add-modal" class="modal"
-       style="display:none; position:fixed; top:0; left:0; right:0; bottom:0;
-              background:rgba(0,0,0,0.8); z-index:2000;
-              align-items:center; justify-content:center;">
-    <div class="modal-content"
-         style="background:#2d2d2d; padding:20px; border-radius:15px;
-                width:80%; max-width:400px; color:#fff;">
-      <h3 style="margin-bottom:15px;">Drop Anchor</h3>
-      <input type="hidden" id="add-lat">
-      <input type="hidden" id="add-lng">
-      <div style="margin:15px 0; display:flex; flex-direction:column; gap:10px;">
-        <div>
-          <label style="font-size:12px; color:#888;">Name/Place</label>
-          <input type="text" id="anchor-name"
-                 placeholder="e.g. The Golden Pasta"
-                 style="width:100%; padding:10px; background:#1a1a1a;
-                        color:#fff; border:1px solid #444; border-radius:5px;">
-        </div>
-        <div>
-          <label style="font-size:12px; color:#888;">Type</label>
-          <select id="anchor-type"
-                  style="width:100%; padding:10px; background:#1a1a1a;
-                         color:#fff; border:1px solid #444; border-radius:5px;">
-            <option value="hotel">Hotel</option>
-            <option value="restaurant">Restaurant</option>
-            <option value="attraction">Attraction</option>
-            <option value="transit">Transit</option>
-            <option value="photo_op">Photo Spot</option>
-            <option value="memory">Memory</option>
-          </select>
-        </div>
-      </div>
-      <div style="display:flex; gap:10px;">
-        <button id="cancel-add"
-                style="flex:1; padding:10px; background:#444; color:#fff;
-                       border:none; border-radius:5px; cursor:pointer;">Cancel</button>
-        <button id="confirm-add"
-                style="flex:1; padding:10px; background:#00D2FF; color:#000;
-                       border:none; border-radius:5px; font-weight:bold;
-                       cursor:pointer;">Add to Map</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ---------- CONNECT MODE MODAL ---------- -->
-  <div id="mode-modal" class="modal"
-       style="display:none; position:fixed; top:0; left:0; right:0; bottom:0;
-              background:rgba(0,0,0,0.8); z-index:2000;
-              align-items:center; justify-content:center;">
-    <div class="modal-content"
-         style="background:#2d2d2d; padding:20px; border-radius:15px;
-                width:80%; max-width:400px; color:#fff; text-align:center;">
-      <h3 style="margin-bottom:15px;">How did you get here?</h3>
-      <div class="mode-grid"
-           style="display:grid; grid-template-columns:repeat(3,1fr); gap:10px;">
-        <button class="mode-btn" data-mode="flight"
-                style="padding:15px; background:#1a1a1a; color:#fff; border:1px solid #444;
-                       border-radius:10px; cursor:pointer;">✈️<br>Flight</button>
-        <button class="mode-btn" data-mode="train"
-                style="padding:15px; background:#1a1a1a; color:#fff; border:1px solid #444;
-                       border-radius:10px; cursor:pointer;">🚂<br>Train</button>
-        <button class="mode-btn" data-mode="car"
-                style="padding:15px; background:#1a1a1a; color:#fff; border:1px solid #444;
-                       border-radius:10px; cursor:pointer;">🚗<br>Car</button>
-        <button class="mode-btn" data-mode="walk"
-                style="padding:15px; background:#1a1a1a; color:#fff; border:1px solid #444;
-                       border-radius:10px; cursor:pointer;">🚶<br>Walk</button>
-        <button class="mode-btn" data-mode="boat"
-                style="padding:15px; background:#1a1a1a; color:#fff; border:1px solid #444;
-                       border-radius:10px; cursor:pointer;">⛵<br>Boat</button>
-        <button class="mode-btn" data-mode="other"
-                style="padding:15px; background:#1a1a1a; color:#fff; border:1px solid #444;
-                       border-radius:10px; cursor:pointer;">❓<br>Other</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ---------- DETAIL SHEET ---------- -->
-  <div id="detail-sheet"
-       style="position:fixed; left:0; right:0; bottom:0; background:#2d2d2d;
-              border-radius:20px 20px 0 0; padding:24px; z-index:1000;
-              transform:translateY(100%); transition:transform 0.3s ease;
-              max-height:60vh; overflow-y:auto; color:#fff;">
-    <div class="sheet-handle"
-         style="width:40px; height:4px; background:#444; border-radius:2px;
-                margin:0 auto 20px;"></div>
-
-    <div id="layer-switcher"
-         style="display:flex; gap:8px; margin-bottom:15px; justify-content:center;"></div>
-
-    <input type="hidden" id="waypoint-id">
-    <h3 id="detail-name">Waypoint Details</h3>
-
-    <!-- Tags -->
-    <div style="margin:10px 0;">
-      <label style="font-size:12px; color:#888;">Tags</label>
-      <select id="detail-tags" multiple
-              style="width:100%; background:#1a1a1a; color:#fff; border:1px solid #444;
-                     border-radius:5px; padding:5px;">
-        <option value="restaurant">Restaurant</option>
-        <option value="attraction">Attraction</option>
-        <option value="hotel">Hotel</option>
-        <option value="shop">Shop</option>
-        <option value="misc">Misc</option>
-      </select>
-    </div>
-
-    <!-- Status -->
-    <div style="margin:10px 0;">
-      <label style="font-size:12px; color:#888;">Status</label>
-      <select id="detail-status"
-              style="width:100%; background:#1a1a1a; color:#fff; border:1px solid #444;
-                     border-radius:5px; padding:5px;">
-        <option value="want">Want to go</option>
-        <option value="been">Been</option>
-      </select>
-    </div>
-
-    <!-- Rating (only when status = “been”) -->
-    <div id="rating-section" style="margin:10px 0; display:none;">
-      <label style="font-size:12px; color:#888;">Rating</label>
-      <div id="rating-stars"
-           style="font-size:20px; color:#FFD700; cursor:pointer;">
-        ★★★★★
-      </div>
-    </div>
-
-    <label style="font-size:12px; color:#888;">Notes & Commentary</label>
-    <textarea id="detail-notes"
-              style="width:100%; height:80px; background:#1a1a1a; color:#fff;
-                     border:1px solid #444; border-radius:8px; padding:10px;
-                     margin-top:5px;"></textarea>
-    <button id="btn-save-notes"
-            style="background:#00D2FF; color:#000; border:none; padding:5px 10px;
-                   border-radius:5px; cursor:pointer; margin-top:5px;
-                   font-weight:bold;">Save Notes</button>
-
-    <div id="photo-grid"
-         style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px;
-                margin:16px 0;"></div>
-    <input type="file" id="photo-input" accept="image/*" style="display:none">
-    <button id="btn-add-photo"
-            style="width:100%; padding:12px; background:#00D2FF; color:#000;
-                   border:none; border-radius:8px; font-weight:bold;
-                   cursor:pointer;">Add Photo</button>
-
-    <button id="btn-delete-waypoint"
-            style="width:100%; padding:12px; background:#e74c3c; color:#fff;
-                   border:none; border-radius:8px; margin-top:8px;
-                   cursor:pointer; font-weight:bold;">Delete Waypoint</button>
-    <button id="close-sheet"
-            style="width:100%; padding:12px; background:#444; color:#fff;
-                   border:none; border-radius:8px; margin-top:8px;
-                   cursor:pointer; font-weight:bold;">Close</button>
-  </div>
-
-  <!-- ---------- TIMELINE STRIP (horizontal) ---------- -->
-  <div id="timeline-strip"
-       style="position:fixed; bottom:0; left:0; right:0; height:120px;
-              background:rgba(30,30,30,0.95); overflow-x:auto; overflow-y:hidden;
-              white-space:nowrap; border-top:1px solid #444; z-index:1000;
-              padding:8px;">
-    <!-- Items injected by main.js -->
-  </div>
-
-  <!-- Passive toast (used for any message) -->
-  <div id="passive-toast"
-       style="position:fixed; top:20px; left:50%; transform:translateX(-50%) translateY(-100px);
-              background:rgba(0,0,0,0.9); color:#fff; padding:12px 24px;
-              border-radius:24px; z-index:2000; transition:transform 0.3s ease;
-              border:1px solid #444;"></div>
-
-  <!-- ---------- EXTERNAL LIBRARIES (CDN) ---------- -->
-  <!-- Dexie – provides a global `Dexie` variable -->
-  <script src="https://cdn.jsdelivr.net/npm/dexie@3.2.4/dist/dexie.min.js"></script>
-
-  <!-- Leaflet JS – **no integrity attribute** -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-  <!-- ---------- YOUR APP LOGIC (ES module) ---------- -->
-  <script type="module" src="/main.js"></script>
+</header>
+<div id="app" class="app-layout">
+<aside id="sidebar" class="sidebar">
+<div class="sidebar-tabs">
+<button class="sidebar-tab active" onclick="switchSidebarView('trips')">Trips</button>
+<button class="sidebar-tab" onclick="switchSidebarView('calendar')">Calendar</button>
+<button class="sidebar-tab" onclick="switchSidebarView('trash')">Trash <span class="badge" id="trashBadge" style="display:none">0</span></button>
+</div>
+<div id="tripsView" class="sidebar-content"><div class="trip-list" id="tripList"></div></div>
+<div id="calendarView" class="sidebar-content" style="display:none">
+<div class="cal-nav">
+<button class="icon-btn" onclick="calNav(-1)">&#8592;</button>
+<span class="cal-month" id="calMonthLabel"></span>
+<button class="icon-btn" onclick="calNav(1)">&#8594;</button>
+</div>
+<div class="cal-grid" id="calGrid"></div>
+<div id="calDayDetail" style="display:none"></div>
+</div>
+<div id="trashView" class="sidebar-content" style="display:none">
+<div class="trash-info">
+<span>Auto-deleted after 7 days</span>
+<button class="btn-sm btn-ghost" onclick="emptyTrashAll()">Empty now</button>
+</div>
+<div id="trashList"></div>
+</div>
+<div id="timeline" class="timeline-bar" style="display:none">
+<div class="timeline-scroll" id="timelineScroll"></div>
+<div class="timeline-legend">
+<span class="tl-dot">&#128694;</span>
+<span class="tl-dot">&#128663;</span>
+<span class="tl-dot">&#9992;</span>
+<span class="tl-dot">&#128646;</span>
+<span class="tl-dot">&#128987;</span>
+</div>
+</div>
+</aside>
+<main id="mapWrap" class="map-wrap">
+<div id="map"></div>
+<div id="tripBanner" class="trip-banner" style="display:none">
+<div class="banner-info">
+<span class="banner-name" id="tripBannerName"></span>
+<span class="banner-stats" id="tripBannerStats"></span>
+</div>
+<div class="banner-actions">
+<button class="icon-btn" onclick="editTripBanner()" title="Edit">&#9998;</button>
+<button class="icon-btn" onclick="shareCurrentTrip()" title="Share">&#128279;</button>
+<button class="icon-btn" onclick="completeCurrentTrip()" id="completeBtn" title="Complete">&#10003;</button>
+<button class="icon-btn" onclick="closeTrip()" title="Close">&#10005;</button>
+</div>
+</div>
+<div id="exploreBar" class="explore-bar">
+<div class="explore-tabs">
+<button class="explore-tab active" onclick="switchExplore('nearby')">Nearby</button>
+<button class="explore-tab" onclick="switchExplore('saved')">My Pins</button>
+</div>
+<div id="exploreResults"><p class="explore-hint">Tap a pin on the map to explore places near it.</p></div>
+</div>
+<div id="timelineControls" class="timeline-controls" style="display:none">
+<button class="tl-sort-btn active" data-sort="sequence" onclick="sortWaypoints('sequence')">Route</button>
+<button class="tl-sort-btn" data-sort="date" onclick="sortWaypoints('date')">Date</button>
+<button class="tl-sort-btn" data-sort="alpha" onclick="sortWaypoints('alpha')">A-Z</button>
+</div>
+<button class="fab" id="fabBtn" onclick="openFAB()" title="Add">+</button>
+</main>
+</div>
+<!-- Trip Modal -->
+<div id="tripModal" class="modal" role="dialog">
+<div class="modal-header">
+<h3 id="tripModalTitle">New Trip</h3>
+<button class="modal-close" onclick="closeModal('tripModal')">&times;</button>
+</div>
+<div class="modal-body">
+<div class="field"><label>Trip name</label><input type="text" id="tripName" placeholder="e.g. Japan 2026" maxlength="80"></div>
+<div class="field"><label>Description</label><textarea id="tripDesc" rows="2" maxlength="500" placeholder="What was this about?"></textarea></div>
+<div class="field-row">
+<div class="field"><label>Start date</label><input type="date" id="tripStart"></div>
+<div class="field"><label>End date</label><input type="date" id="tripEnd"></div>
+</div>
+<div class="field"><label>Color</label>
+<div class="color-picker" id="colorPicker">
+<button class="color-swatch active" style="background:#6366f1" data-color="#6366f1"></button>
+<button class="color-swatch" style="background:#f59e0b" data-color="#f59e0b"></button>
+<button class="color-swatch" style="background:#10b981" data-color="#10b981"></button>
+<button class="color-swatch" style="background:#ef4444" data-color="#ef4444"></button>
+<button class="color-swatch" style="background:#8b5cf6" data-color="#8b5cf6"></button>
+<button class="color-swatch" style="background:#06b6d4" data-color="#06b6d4"></button>
+</div>
+</div>
+<div class="field">
+<label>Cover photo</label>
+<div class="photo-pick-row">
+<button class="btn-sm" onclick="pickCoverPhoto()">Choose</button>
+<button class="btn-sm btn-ghost" onclick="setCoverFromPin()">Use pin photo</button>
+</div>
+<div id="coverPreview" style="display:none;margin-top:8px"><img id="coverImg" style="width:100%;height:120px;object-fit:cover;border-radius:8px"></div>
+</div>
+<div class="modal-actions">
+<button class="btn btn-primary" id="tripSaveBtn" onclick="saveTripModal()">Save Trip</button>
+</div>
+</div>
+</div>
+<!-- Share Modal -->
+<div id="shareModal" class="modal" role="dialog">
+<div class="modal-header">
+<h3>Share Trip</h3>
+<button class="modal-close" onclick="closeModal('shareModal')">&times;</button>
+</div>
+<div class="modal-body">
+<div id="shareContent"></div>
+</div>
+</div>
+<!-- Settings Modal -->
+<div id="settingsModal" class="modal" role="dialog">
+<div class="modal-header">
+<h3>Settings</h3>
+<button class="modal-close" onclick="closeModal('settingsModal')">&times;</button>
+</div>
+<div class="modal-body">
+<div class="settings-section"><h4>Cloud Sync</h4>
+<p style="font-size:0.8rem;color:var(--fg-muted);margin:4px 0 10px">Sync trips to a local folder (Google Drive, Dropbox, iCloud, OneDrive)</p>
+<button class="btn btn-primary" id="selectSyncFolderBtn" onclick="selectSyncFolder()">Select Sync Folder</button>
+<p id="syncFolderStatus" style="font-size:0.75rem;margin-top:6px;color:var(--fg-muted)"></p>
+</div>
+<div class="settings-section"><h4>Photos</h4>
+<p style="font-size:0.8rem;color:var(--fg-muted);margin:4px 0 10px">Store photos locally or import from a folder.</p>
+<button class="btn btn-primary" onclick="selectPhotoFolder()">Photo Folder</button>
+</div>
+<div class="settings-section"><h4>Export / Import</h4>
+<div class="btn-row">
+<button class="btn btn-primary" onclick="exportAllTrips()">Export JSON</button>
+<button class="btn btn-ghost" onclick="document.getElementById('importFile').click()">Import</button>
+<input type="file" id="importFile" accept=".json,.threadmaps" style="display:none" onchange="importTripsFromFile(event)">
+</div>
+</div>
+<div class="settings-section"><h4>Theme</h4>
+<button class="btn btn-ghost" onclick="toggleTheme()">Toggle Light / Dark</button>
+</div>
+<div class="settings-section"><h4>Trash</h4>
+<p style="font-size:0.8rem;color:var(--fg-muted)">Items older than 7 days are auto-deleted.</p>
+<button class="btn btn-ghost" onclick="emptyTrashAll()">Empty trash now</button>
+</div>
+<div class="settings-section"><h4>Nostr (optional)</h4>
+<p style="font-size:0.8rem;color:var(--fg-muted);margin:4px 0 10px">Share trips via Nostr. Requires NIP-07 extension.</p>
+<button class="btn btn-ghost" id="nostrShareBtn" onclick="shareViaNostrPrompt()">Share on Nostr</button>
+</div>
+</div>
+</div>
+<!-- FAB Menu -->
+<div id="fabMenu" class="fab-menu" style="display:none">
+<button class="fab-item" onclick="newTrip()">
+<span class="fab-icon">&#127757;</span><span>New Trip</span>
+</button>
+<button class="fab-item" onclick="addCurrentPin()">
+<span class="fab-icon">&#128205;</span><span>Add Pin Here</span>
+</button>
+<button class="fab-item" onclick="exploreCurrentPin()">
+<span class="fab-icon">&#128270;</span><span>Explore Nearby</span>
+</button>
+<button class="fab-item" onclick="addFromGPS()">
+<span class="fab-icon">&#128205;</span><span>Add My Location</span>
+</button>
+</div>
+<script type="module" src="/main.js"></script>
+<script type="module" src="/share.js"></script>
+<script type="module" src="/app-new.js"></script>
 </body>
 </html>
