@@ -130,7 +130,15 @@ export function initMap() {
     if (e.originalEvent.target.id === 'map') deselectAll();
   });
 
-  loadExistingData();
+  // Expose globally for app-new.js
+  window.map = map;
+  window.mapReady = true;
+  // Load existing data from DB
+  const trips = await db.trips.toArray();
+  if (trips.length) {
+    const lastTrip = trips[trips.length - 1];
+    await window.selectTrip(lastTrip.id);
+  }
   return map;
 }
 
@@ -284,10 +292,18 @@ function generateArc(pts) {
 // 1️⃣2️⃣ Show the “Add Anchor” modal (long‑press)
 // --------------------------------------------------------------
 export function showAddModal(latlng) {
-  const modal = document.getElementById('add-modal');
+  const modal = document.getElementById('waypointModal');
+  if (!modal) { alert('Add modal missing from page'); return; }
+  document.getElementById('wpLat').value = latlng.lat;
+  document.getElementById('wpLng').value = latlng.lng;
+  document.getElementById('wpEditId').value = '';
+  document.getElementById('waypointModalTitle').textContent = 'Add Pin';
+  document.getElementById('wpName').value = '';
+  document.getElementById('wpType').value = 'pin';
+  document.getElementById('wpTags').value = '';
+  document.getElementById('wpDate').value = '';
+  document.getElementById('wpNotes').value = '';
   modal.style.display = 'flex';
-  document.getElementById('add-lat').value = latlng.lat;
-  document.getElementById('add-lng').value = latlng.lng;
 }
 
 // --------------------------------------------------------------

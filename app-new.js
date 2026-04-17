@@ -11,7 +11,17 @@ var sortMode = 'sequence';
 var lightMode = localStorage.getItem('tm_theme') === 'light';
 
 window.addEventListener('DOMContentLoaded', async function() {
-  map.invalidateSize();
+  // Wait for main.js to init the Leaflet map (it runs after us)
+  if (!window.mapReady) {
+    await new Promise(resolve => {
+      const check = setInterval(() => {
+        if (window.mapReady) { clearInterval(check); resolve(); }
+      }, 100);
+      // Timeout after 5s
+      setTimeout(() => { clearInterval(check); resolve(); }, 5000);
+    });
+  }
+  if (window.map) window.map.invalidateSize();
   initTheme();
   await loadTrips();
   await renderCalendar();
@@ -743,9 +753,9 @@ window.deleteWaypoint = async function(wpId) {
 window.addEventListener('DOMContentLoaded', function() {
   // Override map click to add pins - use setTimeout to ensure map is initialized first
   setTimeout(function() {
-    if (typeof map !== 'undefined' && map) {
-      map.off('click'); // remove any existing
-      map.on('click', function(e) {
+    if (window.map) {
+      window.map.off('click'); // remove any existing
+      window.map.on('click', function(e) {
         if (typeof window.openWaypointModal === 'function') {
           window.openWaypointModal(e.latlng.lat, e.latlng.lng);
         }
