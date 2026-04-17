@@ -203,3 +203,12 @@
 .badge { background: var(--accent); color: #fff; font-size: 0.65rem; padding: 1px 5px; border-radius: 8px; font-weight: 700; }
 .sync-status { display: flex; align-items: center; gap: 4px; font-size: 0.72rem; color: var(--fg-muted); cursor: pointer; }
 .sync-status.connected { color: var(--green); }
+
+/* ── App layout (critical for map visibility) ─── */
+html, body { height: 100%; margin: 0; padding: 0; }
+.app-layout { display: flex; height: 100%; overflow: hidden; }
+.map-wrap { flex: 1; position: relative; overflow: hidden; }
+#map { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
+
+/* ── Map positioning fix ─── */
+#map { top: 52px; left: 300px; right: 0; bottom: 0; z-index: 1; }
