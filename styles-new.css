@@ -212,3 +212,13 @@ html, body { height: 100%; margin: 0; padding: 0; }
 
 /* ── Map positioning fix ─── */
 #map { top: 52px; left: 300px; right: 0; bottom: 0; z-index: 1; }
+
+/* ── Mobile responsive ─── */
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+  #map { left: 0; }
+  .app-header { height: 48px; }
+  #map { top: 48px; }
+  .fab { bottom: 24px; right: 16px; }
+  .trip-banner { left: 8px; right: 8px; }
+}
