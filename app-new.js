@@ -1,5 +1,5 @@
 // app-new.js - ThreadMaps new UI layer
-import { db, state, map, addWaypoint, exploreArea, savePOIAsWaypoint, getPinHtml } from './main.js';
+// Removed broken import - accessing globals via window
 import { shareTrip, getSyncStatus, requestSyncFolder, syncToFolder, syncFromFolder, requestPhotoFolder, decryptTrip, loadSharedTrip, shareViaNostr } from './share.js';
 
 const TRASH_DAYS = 7;
@@ -644,3 +644,110 @@ window.openWaypointModal = function(lat, lng) {
   // Stub - calls existing main.js implementation if available
   if (typeof showAddModal === 'function') showAddModal(L.latLng(lat, lng));
 };
+
+// ─── Waypoint modal ───────────────────────────────────────────────────────
+window.openWaypointModal = function(lat, lng, wp) {
+  wp = wp || null;
+  document.getElementById('waypointModalTitle').textContent = wp ? 'Edit Pin' : 'Add Pin';
+  document.getElementById('wpName').value = wp ? (wp.name || '') : '';
+  document.getElementById('wpType').value = wp ? (wp.type || 'pin') : 'pin';
+  document.getElementById('wpTags').value = wp ? (wp.tags || '') : '';
+  document.getElementById('wpDate').value = wp ? (wp.date || '') : '';
+  document.getElementById('wpNotes').value = wp ? (wp.notes || '') : '';
+  document.getElementById('wpLat').value = lat;
+  document.getElementById('wpLng').value = lng;
+  document.getElementById('wpEditId').value = wp ? wp.id : '';
+  openModal('waypointModal');
+};
+
+window.saveWaypointModal = async function() {
+  var name = document.getElementById('wpName').value.trim();
+  var lat = parseFloat(document.getElementById('wpLat').value);
+  var lng = parseFloat(document.getElementById('wpLng').value);
+  var editId = document.getElementById('wpEditId').value;
+  if (!name) { alert('Name required'); return; }
+  if (!state.trip) {
+    // Auto-create a trip
+    var id = await db.trips.add({ name: 'My Trip', status: 'planning', created: Date.now(), color: '#6366f1' });
+    state.trip = await db.trips.get(id);
+  }
+  var wpData = {
+    tripId: state.trip.id,
+    tripName: state.trip.name,
+    lat: lat,
+    lng: lng,
+    name: name,
+    type: document.getElementById('wpType').value,
+    tags: document.getElementById('wpTags').value.trim(),
+    date: document.getElementById('wpDate').value,
+    notes: document.getElementById('wpNotes').value.trim(),
+    color: state.trip.color || '#6366f1',
+    status: 'active'
+  };
+  if (editId) {
+    await db.waypoints.update(parseInt(editId), wpData);
+  } else {
+    wpData.created = Date.now();
+    var wpId = await db.waypoints.add(wpData);
+    wpData.id = wpId;
+  }
+  closeModal('waypointModal');
+  // Add pin to map if not editing
+  if (!editId) {
+    await addWaypointToMap(lat, lng, wpData);
+  } else if (editId) {
+    // Reload waypoint
+    var m = state.markerMap.get(parseInt(editId));
+    if (m) { m.setLatLng([lat, lng]); }
+  }
+  document.getElementById('tripBannerStats').textContent = state.waypoints.size + ' pins';
+  document.getElementById('timeline').style.display = state.waypoints.size > 1 ? '' : 'none';
+  document.getElementById('timelineControls').style.display = state.waypoints.size > 1 ? '' : 'none';
+  renderTimeline();
+};
+
+async function addWaypointToMap(lat, lng, wpData) {
+  var wpId = wpData.id;
+  state.waypoints.set(wpId, wpData);
+  var icon = makePinIcon ? makePinIcon(wpData) : undefined;
+  var m = L.marker([lat, lng], icon ? { icon: icon } : {}).addTo(map);
+  m.on('click', function() { handleWaypointClick(wpId, m); });
+  m.on('contextmenu', function(e) { L.DomEvent.stopPropagation(e); showWaypointDetails(wpId); });
+  state.markers.add(m);
+  state.markerMap.set(wpId, m);
+  if (state.waypoints.size === 1) {
+    map.setView([lat, lng], 12);
+  }
+}
+
+window.showWaypointDetails = async function(wpId) {
+  var wp = await db.waypoints.get(wpId);
+  if (!wp) return;
+  openWaypointModal(wp.lat, wp.lng, wp);
+};
+
+window.deleteWaypoint = async function(wpId) {
+  if (!confirm('Delete this pin?')) return;
+  pushUndo('delete_wp', await db.waypoints.get(wpId));
+  await db.waypoints.delete(wpId);
+  var m = state.markerMap.get(wpId);
+  if (m) { m.remove(); state.markers.delete(m); state.markerMap.delete(wpId); }
+  state.waypoints.delete(wpId);
+  state.selectedWaypoint = null;
+  document.getElementById('tripBannerStats').textContent = state.waypoints.size + ' pins';
+  document.getElementById('timeline').style.display = state.waypoints.size > 1 ? '' : 'none';
+  renderTimeline();
+};
+
+// ─── Map click to add pin ─────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', function() {
+  // Override map click to add pins
+  if (typeof map !== 'undefined' && map) {
+    map.on('click', function(e) {
+      openWaypointModal(e.latlng.lat, e.latlng.lng);
+    });
+    // Also handle FAB "Add Pin Here" if a pin is selected
+    var origOpenWaypoint = window.openWaypointModal;
+    // nothing to wrap - just use the function as-is
+  }
+});

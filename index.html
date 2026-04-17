@@ -211,3 +211,43 @@
 <script type="module" src="/app-new.js"></script>
 </body>
 </html>
+
+<!-- Waypoint Modal -->
+<div id="waypointModal" class="modal" role="dialog">
+  <div class="modal-header">
+    <h3 id="waypointModalTitle">Add Pin</h3>
+    <button class="modal-close" onclick="closeModal('waypointModal')">&times;</button>
+  </div>
+  <div class="modal-body">
+    <div class="field"><label>Name</label><input type="text" id="wpName" placeholder="Name this place" maxlength="80"></div>
+    <div class="field"><label>Type</label>
+      <select id="wpType" style="width:100%;background:var(--bg-base);border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--fg);font-size:0.9rem">
+        <option value="pin">Pin</option>
+        <option value="hotel">Hotel</option>
+        <option value="restaurant">Restaurant</option>
+        <option value="cafe">Cafe</option>
+        <option value="bar">Bar</option>
+        <option value="museum">Museum</option>
+        <option value="park">Park</option>
+        <option value="beach">Beach</option>
+        <option value="church">Church</option>
+        <option value="shop">Shop</option>
+        <option value="flight">Flight</option>
+        <option value="train">Train</option>
+        <option value="boat">Boat</option>
+        <option value="car">Car</option>
+        <option value="walk">Walk</option>
+      </select>
+    </div>
+    <div class="field"><label>Tags</label><input type="text" id="wpTags" placeholder="comma, separated, tags" maxlength="100"></div>
+    <div class="field"><label>Date</label><input type="date" id="wpDate"></div>
+    <div class="field"><label>Notes</label><textarea id="wpNotes" rows="2" placeholder="Notes..."></textarea></div>
+    <input type="hidden" id="wpLat">
+    <input type="hidden" id="wpLng">
+    <input type="hidden" id="wpEditId">
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="wpSaveBtn" onclick="saveWaypointModal()">Save Pin</button>
+    </div>
+  </div>
+</div>
+

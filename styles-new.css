@@ -222,3 +222,13 @@ html, body { height: 100%; margin: 0; padding: 0; }
   .fab { bottom: 24px; right: 16px; }
   .trip-banner { left: 8px; right: 8px; }
 }
+
+/* ── Waypoint modal ─── */
+#waypointModal .field { margin-bottom: 12px; }
+#waypointModal label { display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; color: var(--fg-muted); }
+#waypointModal input, #waypointModal textarea, #waypointModal select { width: 100%; background: var(--bg-base); border: 1px solid var(--border); border-radius: 8px; padding: 8px; color: var(--fg); font-size: 0.9rem; box-sizing: border-box; }
+#waypointModal input:focus, #waypointModal textarea:focus, #waypointModal select:focus { outline: none; border-color: var(--accent); }
+
+/* ── Pin popup ─── */
+.leaflet-popup-content-wrapper { background: var(--bg-raised); color: var(--fg); border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
+.leaflet-popup-tip { background: var(--bg-raised); }
