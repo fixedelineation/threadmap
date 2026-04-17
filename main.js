@@ -100,10 +100,26 @@ export function getPinHtml(layer, tags = []) {
 let map;
 export const state = {
   selectedWaypoint: null,
-  markers: {},      // id → Leaflet marker
-  lines: {},        // "from-to" → polyline
+  markers: new Map(),   // id → Leaflet marker
+  lines: new Map(),     // "from-to" → polyline
+  waypoints: new Map(), // id → waypoint data (for app-new.js)
+  markerMap: new Map(), // id → Leaflet marker (alias for markers, for app-new.js)
+  strings: new Map(),   // id → string data (for app-new.js)
   poiMarkers: []    // temporary POI markers from Explore
 };
+
+
+function makePinIcon(wp) {
+  var colors = { pin:'#6366f1', hotel:'#f59e0b', restaurant:'#ef4444', cafe:'#8b5cf6', bar:'#ec4899', museum:'#14b8a6', park:'#22c55e', beach:'#06b6d4', church:'#f97316', shop:'#a855f7', flight:'#3b82f6', train:'#64748b', boat:'#0ea5e9', car:'#6b7280', walk:'#10b981' };
+  var emojis = { hotel:'H', restaurant:'R', cafe:'C', bar:'B', museum:'M', park:'P', beach:'Be', church:'Ch', shop:'S', flight:'F', train:'T', boat:'Bo', car:'Ca', walk:'W' };
+  var color = wp.color || colors[wp.type] || '#6366f1';
+  var label = emojis[wp.type] || '';
+  return L.divIcon({
+    html: '<div style="background:'+color+';width:28px;height:28px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:2px solid white;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:bold;color:white;box-shadow:0 2px 6px rgba(0,0,0,0.4)"><span style="transform:rotate(45deg)">'+label+'</span></div>',
+    className: '', iconSize: [28, 28], iconAnchor: [14, 28], popupAnchor: [0, -28]
+  });
+}
+window.makePinIcon = makePinIcon;
 
 export function initMap() {
   const mapEl = document.getElementById('map');
@@ -120,12 +136,7 @@ export function initMap() {
   // Re‑render strings when zoom changes (so arcs become visible/invisible)
   map.on('zoomend', () => renderStrings());
 
-  // Long‑press → Add Anchor modal
-  let pressTimer;
-  map.on('mousedown', e => {
-    pressTimer = setTimeout(() => showAddModal(e.latlng), 800);
-  });
-  map.on('mouseup', () => clearTimeout(pressTimer));
+  // Click → deselect
   map.on('click', e => {
     if (e.originalEvent.target.id === 'map') deselectAll();
   });
@@ -139,7 +150,7 @@ export function initMap() {
 
 function deselectAll() {
   state.selectedWaypoint = null;
-  Object.values(state.markers).forEach(m => m.getElement()?.classList.remove('selected'));
+  state.markers.forEach(m => m.getElement()?.classList.remove('selected'));
 }
 
 // --------------------------------------------------------------
@@ -214,7 +225,7 @@ export async function addWaypoint(latlng, data) {
     handleWaypointClick(id, marker);
   });
 
-  state.markers[id] = marker;
+  state.markers.set(id, marker);
   return id;
 }
 
@@ -229,7 +240,7 @@ async function handleWaypointClick(id, marker) {
     deselectAll();
     state.selectedWaypoint = id;
     marker.getElement().classList.add('selected');
-    showWaypointDetails(id);
+    window.showWaypointDetails(id);
   }
 }
 
@@ -251,8 +262,8 @@ async function connectWaypoints(fromId, toId) {
 // 🔟 Render all strings (lines) – macro vs. micro view
 // --------------------------------------------------------------
 async function renderStrings() {
-  Object.values(state.lines).forEach(l => map.removeLayer(l));
-  state.lines = {};
+  state.lines.forEach(l => map.removeLayer(l));
+  state.lines.clear();
 
   const zoom = map.getZoom();
   const strings = await db.strings.toArray();
@@ -268,7 +279,7 @@ async function renderStrings() {
       : (s.mode === 'flight' ? generateArc([from, to]) : [[from.lat, from.lng], [to.lat, to.lng]]);
 
     const line = L.polyline(path, { ...style, className: `string-line string-${s.mode}` }).addTo(map);
-    state.lines[`${s.fromId}-${s.toId}`] = line;
+    state.lines.set(`${s.fromId}-${s.toId}`, line);
   }
 }
 
@@ -541,16 +552,16 @@ async function showModeSelector() {
 // 2️⃣0️⃣ Remove a waypoint (called from the side‑sheet delete button)
 // --------------------------------------------------------------
 export async function removeWaypointFromMap(id) {
-  const marker = state.markers[id];
+  const marker = state.markers.get(id);
   if (marker) {
     map.removeLayer(marker);
-    delete state.markers[id];
+    state.markers.delete(id);
   }
-  Object.entries(state.lines).forEach(([key, line]) => {
+  state.lines.forEach((line, key) => {
     const [fromId, toId] = key.split('-');
     if (fromId == id || toId == id) {
       map.removeLayer(line);
-      delete state.lines[key];
+      state.lines.delete(key);
     }
   });
 }
@@ -595,6 +606,8 @@ function showToast(message, duration = 3000) {
 // 2️⃣3️⃣ Expose the detail‑sheet function globally (timeline uses it)
 // --------------------------------------------------------------
 window.showWaypointDetails = showWaypointDetails;
+window.handleWaypointClick = handleWaypointClick;
+window.renderTimeline = renderTimeline;
 
 // --------------------------------------------------------------
 // 2️⃣4️⃣ UI helpers & event wiring (run after DOM is ready)

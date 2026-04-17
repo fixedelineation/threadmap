@@ -1,6 +1,8 @@
 // app-new.js - ThreadMaps new UI layer
 // Removed broken import - accessing globals via window
 import { shareTrip, getSyncStatus, requestSyncFolder, syncToFolder, syncFromFolder, requestPhotoFolder, decryptTrip, loadSharedTrip, shareViaNostr } from './share.js';
+import { db, state, map } from './main.js';
+import { db, state, map } from './main.js';
 
 const TRASH_DAYS = 7;
 var calYear = new Date().getFullYear();
@@ -213,7 +215,7 @@ window.selectTrip = async function(id) {
     var m = L.marker([wp.lat, wp.lng], { icon: makePinIcon(wp) }).addTo(map);
     m.on('click', function() { handleWaypointClick(wpId, m); });
     m.on('contextmenu', function(e) { L.DomEvent.stopPropagation(e); showWaypointDetails(wpId); });
-    state.markers.add(m);
+    state.markers.set(wpId, m);
     state.markerMap.set(wpId, m);
   });
   if (wps.length) {
@@ -723,7 +725,7 @@ async function addWaypointToMap(lat, lng, wpData) {
   var m = L.marker([lat, lng], icon ? { icon: icon } : {}).addTo(map);
   m.on('click', function() { handleWaypointClick(wpId, m); });
   m.on('contextmenu', function(e) { L.DomEvent.stopPropagation(e); showWaypointDetails(wpId); });
-  state.markers.add(m);
+  state.markers.set(wpId, m);
   state.markerMap.set(wpId, m);
   if (state.waypoints.size === 1) {
     map.setView([lat, lng], 12);
@@ -741,7 +743,7 @@ window.deleteWaypoint = async function(wpId) {
   pushUndo('delete_wp', await db.waypoints.get(wpId));
   await db.waypoints.delete(wpId);
   var m = state.markerMap.get(wpId);
-  if (m) { m.remove(); state.markers.delete(m); state.markerMap.delete(wpId); }
+  if (m) { m.remove(); state.markers.delete(wpId); state.markerMap.delete(wpId); }
   state.waypoints.delete(wpId);
   state.selectedWaypoint = null;
   document.getElementById('tripBannerStats').textContent = state.waypoints.size + ' pins';
@@ -751,15 +753,29 @@ window.deleteWaypoint = async function(wpId) {
 
 // ─── Map click to add pin ─────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', function() {
-  // Override map click to add pins - use setTimeout to ensure map is initialized first
-  setTimeout(function() {
-    if (window.map) {
-      window.map.off('click'); // remove any existing
-      window.map.on('click', function(e) {
-        if (typeof window.openWaypointModal === 'function') {
-          window.openWaypointModal(e.latlng.lat, e.latlng.lng);
-        }
-      });
-    }
-  }, 1000);
+  // Map click → deselect (unless clicking a marker), long-press → add pin
+  if (window.map) {
+    let pressTimer;
+    window.map.on('mousedown', e => {
+      if (e.originalEvent.target.id === 'map' || e.originalEvent.target.closest('.leaflet-container')) {
+        pressTimer = setTimeout(() => {
+          if (typeof window.openWaypointModal === 'function') {
+            window.openWaypointModal(e.latlng.lat, e.latlng.lng);
+          }
+        }, 600);
+      }
+    });
+    window.map.on('mouseup', () => clearTimeout(pressTimer));
+    window.map.on('touchstart', e => {
+      if (e.originalTarget.id === 'map' || e.originalTarget.closest('.leaflet-container')) {
+        pressTimer = setTimeout(() => {
+          if (typeof window.openWaypointModal === 'function') {
+            const touch = e.touches[0];
+            window.openWaypointModal(touch.latLng.lat, touch.latLng.lng);
+          }
+        }, 600);
+      }
+    }, { passive: true });
+    window.map.on('touchend', () => clearTimeout(pressTimer));
+  }
 });
