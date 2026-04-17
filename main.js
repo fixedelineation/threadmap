@@ -100,6 +100,7 @@ export function getPinHtml(layer, tags = []) {
 let map;
 export const state = {
   selectedWaypoint: null,
+  trip: null,       // current trip object (used by app-new.js)
   markers: new Map(),   // id → Leaflet marker
   lines: new Map(),     // "from-to" → polyline
   waypoints: new Map(), // id → waypoint data (for app-new.js)
