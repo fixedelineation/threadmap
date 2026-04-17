@@ -130,15 +130,10 @@ export function initMap() {
     if (e.originalEvent.target.id === 'map') deselectAll();
   });
 
-  // Expose globally for app-new.js
+  // Expose globally for app-new.js (must be synchronous, before any awaits)
   window.map = map;
   window.mapReady = true;
-  // Load existing data from DB
-  const trips = await db.trips.toArray();
-  if (trips.length) {
-    const lastTrip = trips[trips.length - 1];
-    await window.selectTrip(lastTrip.id);
-  }
+
   return map;
 }
 
