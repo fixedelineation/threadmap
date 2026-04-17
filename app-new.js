@@ -2,7 +2,6 @@
 // Removed broken import - accessing globals via window
 import { shareTrip, getSyncStatus, requestSyncFolder, syncToFolder, syncFromFolder, requestPhotoFolder, decryptTrip, loadSharedTrip, shareViaNostr } from './share.js';
 import { db, state, map } from './main.js';
-import { db, state, map } from './main.js';
 
 const TRASH_DAYS = 7;
 var calYear = new Date().getFullYear();
