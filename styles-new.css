@@ -215,7 +215,7 @@ html, body { height: 100%; margin: 0; padding: 0; }
 
 /* ── Mobile responsive ─── */
 @media (max-width: 768px) {
-  .sidebar { display: none; }
+  .sidebar { display: flex; }
   #map { left: 0; }
   .app-header { height: 48px; }
   #map { top: 48px; }
@@ -265,8 +265,8 @@ body { height: 100%; margin: 0; padding: 0; background: #0a0a0f; color: #fff; fo
 
 /* Mobile: map goes full width */
 @media (max-width: 768px) {
-  .sidebar { display: none; }
-  #map { left: 0; top: 48px; }
+  .sidebar { display: flex; width: 100%; position: absolute; top: 0; left: 0; bottom: 0; z-index: 200; background: #12121a; }
+  #map { left: 0; top: 0; }
   .app-header { height: 48px; }
   .fab { bottom: 24px; right: 16px; }
   .trip-banner { left: 8px; right: 8px; }
@@ -290,7 +290,7 @@ html, body { height: 100%; margin: 0; padding: 0; background: #0a0a0f; color: #f
 
 /* Mobile layout */
 @media (max-width: 768px) {
-  .sidebar { display: none; }
+  .sidebar { display: flex; }
   #map { left: 0; top: 48px; }
   .app-header { height: 48px; }
 }

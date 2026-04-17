@@ -422,7 +422,7 @@ window.openWpFromSearch = async function(id) {
 
 window.toggleSidebar = function() {
   var sb = document.getElementById('sidebar');
-  sb.style.display = sb.style.display === 'none' ? '' : 'none';
+  sb.style.display = sb.style.display === 'none' ? 'flex' : 'none';
   map.invalidateSize();
 };
 
