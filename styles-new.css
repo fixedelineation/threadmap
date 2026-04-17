@@ -232,3 +232,72 @@ html, body { height: 100%; margin: 0; padding: 0; }
 /* ── Pin popup ─── */
 .leaflet-popup-content-wrapper { background: var(--bg-raised); color: var(--fg); border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
 .leaflet-popup-tip { background: var(--bg-raised); }
+
+
+/* ── Critical fixes: body/map background, sidebar visibility ─── */
+html { height: 100%; background: #0a0a0f; }
+body { height: 100%; margin: 0; padding: 0; background: #0a0a0f; color: #fff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+
+/* Map background (covers the whole area under header) */
+#map, .map-wrap { background: #0a0a0f !important; }
+
+/* Sidebar must be visible */
+.sidebar {
+  width: 300px;
+  flex-shrink: 0;
+  background: #12121a;
+  border-right: 1px solid #2a2a3a;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 100;
+  position: relative;
+}
+
+/* Map starts below header */
+#map {
+  position: absolute;
+  top: 52px;
+  left: 300px;
+  right: 0;
+  bottom: 0;
+}
+
+/* Mobile: map goes full width */
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+  #map { left: 0; top: 48px; }
+  .app-header { height: 48px; }
+  .fab { bottom: 24px; right: 16px; }
+  .trip-banner { left: 8px; right: 8px; }
+}
+
+/* ── Body + map background fixes ─── */
+html, body { height: 100%; margin: 0; padding: 0; background: #0a0a0f; color: #fff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+
+/* Override map-wrap background */
+.map-wrap { background: #0a0a0f !important; }
+
+/* Map starts below header, right of sidebar */
+#map {
+  position: absolute;
+  top: 52px;
+  left: 300px;
+  right: 0;
+  bottom: 0;
+  background: #0a0a0f;
+}
+
+/* Mobile layout */
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+  #map { left: 0; top: 48px; }
+  .app-header { height: 48px; }
+}
+
+/* ── App shell background (no gaps) ─── */
+html { height: 100%; background: #0a0a0f; }
+body { height: 100%; margin: 0; padding: 0; background: #0a0a0f; color: #fff; }
+.app-layout { display: flex; height: 100%; overflow: hidden; }
+.map-wrap { flex: 1; position: relative; overflow: hidden; background: #0a0a0f; }
+#map { background: #0a0a0f; }

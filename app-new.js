@@ -741,13 +741,15 @@ window.deleteWaypoint = async function(wpId) {
 
 // ─── Map click to add pin ─────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', function() {
-  // Override map click to add pins
-  if (typeof map !== 'undefined' && map) {
-    map.on('click', function(e) {
-      openWaypointModal(e.latlng.lat, e.latlng.lng);
-    });
-    // Also handle FAB "Add Pin Here" if a pin is selected
-    var origOpenWaypoint = window.openWaypointModal;
-    // nothing to wrap - just use the function as-is
-  }
+  // Override map click to add pins - use setTimeout to ensure map is initialized first
+  setTimeout(function() {
+    if (typeof map !== 'undefined' && map) {
+      map.off('click'); // remove any existing
+      map.on('click', function(e) {
+        if (typeof window.openWaypointModal === 'function') {
+          window.openWaypointModal(e.latlng.lat, e.latlng.lng);
+        }
+      });
+    }
+  }, 1000);
 });
