@@ -21,30 +21,12 @@
   --fg-muted: #666680;
 }
 /* ── App shell: full viewport, no gaps ─── */
-/* Body is the flex column: header on top, app-layout below */
 html { height: 100%; background: #0a0a0f; }
 body { display: flex; flex-direction: column; height: 100%; height: 100dvh; margin: 0; padding: 0; background: #0a0a0f; color: #fff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; overflow: hidden; }
-
-/* Header: fixed height, top of page */
-.app-header { height: 52px; flex-shrink: 0; }
-
-/* App body: sidebar + map side by side, fills remaining height */
-#app, .app-layout { display: flex; flex: 1; overflow: hidden; min-height: 0; }
-
-/* Sidebar: fixed width, next to map */
-.sidebar {
-  width: 300px; flex-shrink: 0;
-  background: var(--bg-raised);
-  border-right: 1px solid var(--border);
-  display: flex; flex-direction: column; overflow: hidden;
-  z-index: 100; position: relative;
-}
-
-/* Map area: fills remaining space */
-.map-wrap { flex: 1; position: relative; overflow: hidden; background: #0a0a0f; min-width: 0; }
-/* Map fills its container */
-#map { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: #0a0a0f; z-index: 1; }
-
+.sidebar { width: 300px; flex-shrink: 0; background: var(--bg-raised); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+.app-layout { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+.map-wrap { flex: 1; min-width: 0; position: relative; overflow: hidden; background: #0a0a0f; }
+#map { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: #0a0a0f; }
 /* ── Mobile: sidebar hidden, map full width ─── */
 @media (max-width: 768px) {
   .sidebar { display: none; }
