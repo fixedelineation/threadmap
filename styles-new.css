@@ -225,3 +225,6 @@ body { margin: 0; padding-top: 52px; background: #0a0a0f; font-family: -apple-sy
 
 
 /* Mobile overrides must use !important to beat the structural CSS */
+/* Layout override - force #app to fill remaining height */
+html body #app.app-layout { display: flex !important; flex-direction: row !important; flex: 1 1 0% !important; min-height: 0 !important; overflow: hidden !important; }
+body #app { height: auto !important; min-height: 0 !important; flex: 1 1 0% !important; }
