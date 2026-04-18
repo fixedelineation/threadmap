@@ -248,7 +248,7 @@ window.selectTrip = async function(id) {
   }
   document.getElementById('tripBanner').style.display = '';
   document.getElementById('tripBannerName').textContent = trip.name;
-  document.getElementById('tripBannerStats').textContent = wps.length + ' pins';
+  document.getElementById('tripBannerStats').textContent = (wps.length === 1 ? '1 pin' : wps.length + ' pins');
   document.getElementById('timeline').style.display = wps.length > 1 ? '' : 'none';
   document.getElementById('timelineControls').style.display = wps.length > 1 ? '' : 'none';
   renderTimeline();
@@ -622,7 +622,7 @@ async function checkSharedTrip() {
   document.getElementById('sidebar').style.display = 'none';
   document.getElementById('tripBanner').style.display = '';
   document.getElementById('tripBannerName').textContent = (trip.name || 'Trip') + ' (view only)';
-  document.getElementById('tripBannerStats').textContent = (trip.waypoints ? trip.waypoints.length : 0) + ' pins';
+  document.getElementById('tripBannerStats').textContent = (trip.waypoints ? trip.waypoints.length : 0) === 1 ? '1 pin' : (trip.waypoints ? trip.waypoints.length : 0) + ' pins';
 }
 
 // ─── Export / Import ───────────────────────────────────────────────────────
@@ -736,7 +736,7 @@ window.saveWaypointModal = async function() {
     var m = state.markerMap.get(parseInt(editId));
     if (m) { m.setLatLng([lat, lng]); }
   }
-  document.getElementById('tripBannerStats').textContent = state.waypoints.size + ' pins';
+  document.getElementById('tripBannerStats').textContent = (state.waypoints.size === 1 ? '1 pin' : state.waypoints.size + ' pins');
   document.getElementById('timeline').style.display = state.waypoints.size > 1 ? '' : 'none';
   document.getElementById('timelineControls').style.display = state.waypoints.size > 1 ? '' : 'none';
   renderTimeline();
@@ -770,7 +770,7 @@ window.deleteWaypoint = async function(wpId) {
   if (m) { m.remove(); state.markers.delete(wpId); state.markerMap.delete(wpId); }
   state.waypoints.delete(wpId);
   state.selectedWaypoint = null;
-  document.getElementById('tripBannerStats').textContent = state.waypoints.size + ' pins';
+  document.getElementById('tripBannerStats').textContent = (state.waypoints.size === 1 ? '1 pin' : state.waypoints.size + ' pins');
   document.getElementById('timeline').style.display = state.waypoints.size > 1 ? '' : 'none';
   renderTimeline();
 };
