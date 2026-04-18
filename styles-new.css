@@ -202,29 +202,22 @@
 .sync-status.connected { color: var(--green); }
 
 
-/* ── App layout: fixed positioning ─── */
-/* Use position:fixed for the app container to avoid flexbox height bugs from unpkg CSS */
-body { margin: 0; padding-top: 52px; background: #0a0a0f; font-family: -apple-system, sans-serif; overflow: hidden; }
-.app-header { position: fixed; top: 0; left: 0; right: 0; height: 52px; z-index: 200; background: var(--bg-raised); border-bottom: 1px solid var(--border); }
-.app-layout { display: flex; height: calc(100vh - 52px); height: 100dvh; overflow: hidden; }
-.sidebar { width: 300px; flex-shrink: 0; overflow-y: auto; }
-.map-wrap { flex: 1; position: relative; overflow: hidden; background: #0a0a0f; }
-#map { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: #0a0a0f; }
+/* ── App layout: absolute positioning ─── */
+/* This section overrides all previous layout rules */
+body { margin: 0 !important; padding-top: 52px !important; background: #0a0a0f !important; overflow: hidden !important; height: 100vh !important; height: 100dvh !important; }
+.app-header { position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; height: 52px !important; z-index: 200 !important; background: var(--bg-raised) !important; }
+.app-layout { position: absolute !important; top: 52px !important; left: 0 !important; right: 0 !important; bottom: 0 !important; display: flex !important; overflow: hidden !important; }
+.sidebar { width: 300px !important; flex-shrink: 0 !important; flex-grow: 0 !important; overflow-y: auto !important; }
+.map-wrap { flex: 1 !important; position: relative !important; overflow: hidden !important; background: #0a0a0f !important; }
+#map { position: absolute !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; background: #0a0a0f !important; }
 
 @media (max-width: 768px) {
-  body { padding-top: 48px; }
-  .app-header { height: 48px; }
-  .app-layout { height: calc(100vh - 48px); height: 100dvh; }
-  .sidebar { display: none; width: 300px; }
-  .sidebar.open { display: block; position: fixed; top: 48px; left: 0; bottom: 0; width: 100%; z-index: 200; }
-  #map { left: 0; }
+  body { padding-top: 48px !important; }
+  .app-header { height: 48px !important; }
+  .app-layout { top: 48px !important; }
+  .sidebar { display: none !important; width: 300px !important; }
+  .sidebar.open { display: block !important; position: fixed !important; top: 48px !important; left: 0 !important; bottom: 0 !important; width: 100% !important; z-index: 200 !important; }
+  #map { left: 0 !important; }
 }
 
-
-
-
-
-/* Mobile overrides must use !important to beat the structural CSS */
-/* Layout override - force #app to fill remaining height */
-html body #app.app-layout { display: flex !important; flex-direction: row !important; flex: 1 1 0% !important; min-height: 0 !important; overflow: hidden !important; }
 body #app { height: auto !important; min-height: 0 !important; flex: 1 1 0% !important; }
