@@ -97,7 +97,7 @@ export function getPinHtml(layer, tags = []) {
 // --------------------------------------------------------------
 // 4️⃣ Global state & map init
 // --------------------------------------------------------------
-let map;
+export let map;
 export const state = {
   selectedWaypoint: null,
   trip: null,       // current trip object (used by app-new.js)
@@ -568,9 +568,6 @@ export async function removeWaypointFromMap(id) {
 }
 
 // --------------------------------------------------------------
-// 2️⃣1️⃣ Export the Leaflet map instance (used by other modules)
-// --------------------------------------------------------------
-export { map };
 
 // --------------------------------------------------------------
 // 2️⃣2️⃣ Toast helper – reusable across the app
