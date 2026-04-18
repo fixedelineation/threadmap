@@ -202,16 +202,20 @@
 .sync-status.connected { color: var(--green); }
 
 
-/* ── App layout - MUST be last ─── */
+/* ── App layout: body=flex column, app-layout=flex row ─── */
 html, body { margin: 0; padding: 0; }
-body { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
-.app-header { height: 52px !important; min-height: 0 !important; flex-shrink: 0; box-sizing: border-box; }
-#app, .app-layout { display: flex; flex: 1; min-height: 0; overflow: hidden; }
-.sidebar { width: 300px; flex-shrink: 0; flex-grow: 0; }
-.map-wrap { flex: 1; min-width: 0; overflow: hidden; position: relative; }
+html { height: 100dvh; }
+body { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+.app-header { height: 52px; flex-shrink: 0; }
+/* .app-layout contains sidebar+map as flex row, fills remaining body height */
+.app-layout { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+.sidebar { width: 300px; flex-shrink: 0; flex-grow: 0; overflow-y: auto; overflow-x: hidden; }
+.map-wrap { flex: 1; min-width: 0; position: relative; overflow: hidden; background: #0a0a0f; }
 #map { position: absolute; inset: 0; background: #0a0a0f; }
+
+
 @media (max-width: 768px) {
-  .sidebar { display: none; }
-  .sidebar.open { display: flex; width: 100%; position: absolute; top: 0; left: 0; bottom: 0; z-index: 200; }
+  .sidebar { display: none; width: 100%; }
+  .sidebar.open { display: flex; position: fixed; top: 0; left: 0; bottom: 0; z-index: 200; }
   #map { left: 0; }
 }
