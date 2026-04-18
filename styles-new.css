@@ -20,6 +20,42 @@
   --fg: #1a1a2e;
   --fg-muted: #666680;
 }
+/* ── App shell: full viewport, no gaps ─── */
+/* Body is the flex column: header on top, app-layout below */
+html { height: 100%; background: #0a0a0f; }
+body { display: flex; flex-direction: column; height: 100%; height: 100dvh; margin: 0; padding: 0; background: #0a0a0f; color: #fff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; overflow: hidden; }
+
+/* Header: fixed height, top of page */
+.app-header { height: 52px; flex-shrink: 0; }
+
+/* App body: sidebar + map side by side, fills remaining height */
+#app, .app-layout { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+
+/* Sidebar: fixed width, next to map */
+.sidebar {
+  width: 300px; flex-shrink: 0;
+  background: var(--bg-raised);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden;
+  z-index: 100; position: relative;
+}
+
+/* Map area: fills remaining space */
+.map-wrap { flex: 1; position: relative; overflow: hidden; background: #0a0a0f; min-width: 0; }
+/* Map fills its container */
+#map { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: #0a0a0f; z-index: 1; }
+
+/* ── Mobile: sidebar hidden, map full width ─── */
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+  .sidebar.open { display: flex; width: 100%; position: absolute; top: 0; left: 0; bottom: 0; z-index: 200; }
+  #map { left: 0; }
+  .app-header { height: 48px; }
+  .fab { bottom: 24px; right: 16px; }
+  .trip-banner { left: 8px; right: 8px; }
+  body { padding-top: env(safe-area-inset-top); }
+}
+
 
 /* ── Header ─────────────────────────────── */
 .app-header {
@@ -68,10 +104,6 @@
 .sr-meta { font-size: 0.75rem; color: var(--fg-muted); margin-top: 2px; }
 
 /* ── Sidebar ───────────────────────────── */
-.sidebar {
-  width: 300px; flex-shrink: 0; background: var(--bg-raised);
-  border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden;
-}
 .sidebar-tabs { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .sidebar-tab {
   flex: 1; padding: 10px 0; background: none; border: none;
@@ -205,99 +237,3 @@
 .sync-status.connected { color: var(--green); }
 
 /* ── App layout (critical for map visibility) ─── */
-html, body { height: 100%; margin: 0; padding: 0; }
-.app-layout { display: flex; height: 100%; overflow: hidden; }
-.map-wrap { flex: 1; position: relative; overflow: hidden; }
-#map { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
-
-/* ── Map positioning fix ─── */
-#map { top: 52px; left: 300px; right: 0; bottom: 0; z-index: 1; }
-
-/* ── Mobile responsive ─── */
-@media (max-width: 768px) {
-  .sidebar { display: flex; }
-  #map { left: 0; }
-  .app-header { height: 48px; }
-  #map { top: 48px; }
-  .fab { bottom: 24px; right: 16px; }
-  .trip-banner { left: 8px; right: 8px; }
-}
-
-/* ── Waypoint modal ─── */
-#waypointModal .field { margin-bottom: 12px; }
-#waypointModal label { display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; color: var(--fg-muted); }
-#waypointModal input, #waypointModal textarea, #waypointModal select { width: 100%; background: var(--bg-base); border: 1px solid var(--border); border-radius: 8px; padding: 8px; color: var(--fg); font-size: 0.9rem; box-sizing: border-box; }
-#waypointModal input:focus, #waypointModal textarea:focus, #waypointModal select:focus { outline: none; border-color: var(--accent); }
-
-/* ── Pin popup ─── */
-.leaflet-popup-content-wrapper { background: var(--bg-raised); color: var(--fg); border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
-.leaflet-popup-tip { background: var(--bg-raised); }
-
-
-/* ── Critical fixes: body/map background, sidebar visibility ─── */
-html { height: 100%; background: #0a0a0f; }
-body { height: 100%; margin: 0; padding: 0; background: #0a0a0f; color: #fff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-
-/* Map background (covers the whole area under header) */
-#map, .map-wrap { background: #0a0a0f !important; }
-
-/* Sidebar must be visible */
-.sidebar {
-  width: 300px;
-  flex-shrink: 0;
-  background: #12121a;
-  border-right: 1px solid #2a2a3a;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  z-index: 100;
-  position: relative;
-}
-
-/* Map starts below header */
-#map {
-  position: absolute;
-  top: 52px;
-  left: 300px;
-  right: 0;
-  bottom: 0;
-}
-
-/* Mobile: map goes full width */
-@media (max-width: 768px) {
-  .sidebar { display: flex; width: 100%; position: absolute; top: 0; left: 0; bottom: 0; z-index: 200; background: #12121a; }
-  #map { left: 0; top: 0; }
-  .app-header { height: 48px; }
-  .fab { bottom: 24px; right: 16px; }
-  .trip-banner { left: 8px; right: 8px; }
-}
-
-/* ── Body + map background fixes ─── */
-html, body { height: 100%; margin: 0; padding: 0; background: #0a0a0f; color: #fff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-
-/* Override map-wrap background */
-.map-wrap { background: #0a0a0f !important; }
-
-/* Map starts below header, right of sidebar */
-#map {
-  position: absolute;
-  top: 52px;
-  left: 300px;
-  right: 0;
-  bottom: 0;
-  background: #0a0a0f;
-}
-
-/* Mobile layout */
-@media (max-width: 768px) {
-  .sidebar { display: flex; }
-  #map { left: 0; top: 48px; }
-  .app-header { height: 48px; }
-}
-
-/* ── App shell background (no gaps) ─── */
-html { height: 100%; background: #0a0a0f; }
-body { height: 100%; margin: 0; padding: 0; background: #0a0a0f; color: #fff; }
-.app-layout { display: flex; height: 100%; overflow: hidden; }
-.map-wrap { flex: 1; position: relative; overflow: hidden; background: #0a0a0f; }
-#map { background: #0a0a0f; }
