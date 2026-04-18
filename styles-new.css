@@ -20,23 +20,6 @@
   --fg: #1a1a2e;
   --fg-muted: #666680;
 }
-/* ── App shell: full viewport, no gaps ─── */
-html { height: 100%; background: #0a0a0f; }
-body { display: flex; flex-direction: column; height: 100%; height: 100dvh; margin: 0; padding: 0; background: #0a0a0f; color: #fff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; overflow: hidden; }
-.sidebar { width: 300px; flex-shrink: 0; background: var(--bg-raised); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
-.app-layout { display: flex; flex: 1; min-height: 0; overflow: hidden; }
-.map-wrap { flex: 1; min-width: 0; position: relative; overflow: hidden; background: #0a0a0f; }
-#map { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: #0a0a0f; }
-/* ── Mobile: sidebar hidden, map full width ─── */
-@media (max-width: 768px) {
-  .sidebar { display: none; }
-  .sidebar.open { display: flex; width: 100%; position: absolute; top: 0; left: 0; bottom: 0; z-index: 200; }
-  #map { left: 0; }
-  .app-header { height: 48px; }
-  .fab { bottom: 24px; right: 16px; }
-  .trip-banner { left: 8px; right: 8px; }
-  body { padding-top: env(safe-area-inset-top); }
-}
 
 
 /* ── Header ─────────────────────────────── */
@@ -219,3 +202,20 @@ body { display: flex; flex-direction: column; height: 100%; height: 100dvh; marg
 .sync-status.connected { color: var(--green); }
 
 /* ── App layout (critical for map visibility) ─── */
+
+/* ── App shell (layout) - must be last for specificity ─── */
+html, body { margin: 0; padding: 0; background: #0a0a0f; color: #fff; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+html { height: 100%; }
+body { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
+/* .app-header is styled in the Header section above */
+.app-layout, #app { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+.sidebar { width: 300px; flex-shrink: 0; flex-grow: 0; }
+.map-wrap { flex: 1; min-width: 0; position: relative; overflow: hidden; background: #0a0a0f; }
+/* #map fills the map-wrap area completely */
+#map { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: #0a0a0f; }
+/* Mobile */
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+  .sidebar.open { display: flex; width: 100%; position: absolute; top: 0; left: 0; bottom: 0; z-index: 200; }
+  #map { left: 0; }
+}
