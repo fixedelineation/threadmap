@@ -22,7 +22,32 @@ window.addEventListener('DOMContentLoaded', async function() {
       setTimeout(() => { clearInterval(check); resolve(); }, 5000);
     });
   }
-  if (window.map) window.map.invalidateSize();
+  if (window.map) {
+    window.map.invalidateSize();
+    // Long-press → add pin at that location
+    let pressTimer;
+    window.map.on('mousedown', e => {
+      if (!e.originalEvent.target.closest('.marker-popup') && !e.originalEvent.target.closest('.waypoint-marker')) {
+        pressTimer = setTimeout(() => {
+          if (typeof window.openWaypointModal === 'function') {
+            window.openWaypointModal(e.latlng.lat, e.latlng.lng);
+          }
+        }, 600);
+      }
+    });
+    window.map.on('mouseup', () => clearTimeout(pressTimer));
+    window.map.on('touchstart', e => {
+      if (!e.originalTarget.closest('.marker-popup') && !e.originalTarget.closest('.waypoint-marker')) {
+        pressTimer = setTimeout(() => {
+          if (typeof window.openWaypointModal === 'function') {
+            const touch = e.touches[0];
+            window.openWaypointModal(touch.latLng.lat, touch.latLng.lng);
+          }
+        }, 600);
+      }
+    }, { passive: true });
+    window.map.on('touchend', () => clearTimeout(pressTimer));
+  }
   initTheme();
   await loadTrips();
   await renderCalendar();
