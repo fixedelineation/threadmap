@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#0a0a0f">
 <title>ThreadMaps</title>
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+<link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="stylesheet" href="/style.css">
 <link rel="stylesheet" href="/styles-new.css">
@@ -42,6 +46,9 @@
     </button>
     <button class="icon-btn" id="settingsBtn" onclick="openSettings()" title="Settings">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.82 1 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+      <button class="fab-btn" id="fabBtn" onclick="openFAB()" title="Add Pin" style="background:var(--accent);color:#fff;border:none;border-radius:8px;width:36px;height:36px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+      +
     </button>
   </div>
 </header>
@@ -94,10 +101,11 @@
 <button class="icon-btn" onclick="closeTrip()" title="Close">&#10005;</button>
 </div>
 </div>
-<div id="exploreBar" class="explore-bar">
+<div id="exploreBar" class="explore-bar" style="display:none">
 <div class="explore-tabs">
 <button class="explore-tab active" onclick="switchExplore('nearby')">Nearby</button>
 <button class="explore-tab" onclick="switchExplore('saved')">My Pins</button>
+<button class="explore-close icon-btn" onclick="document.getElementById('exploreBar').style.display='none'" title="Close">&times;</button>
 </div>
 <div id="exploreResults"><p class="explore-hint">Tap a pin on the map to explore places near it.</p></div>
 </div>
@@ -106,7 +114,6 @@
 <button class="tl-sort-btn" data-sort="date" onclick="sortWaypoints('date')">Date</button>
 <button class="tl-sort-btn" data-sort="alpha" onclick="sortWaypoints('alpha')">A-Z</button>
 </div>
-<button class="fab" id="fabBtn" onclick="openFAB()" title="Add">+</button>
 </main>
 </div>
 <!-- Trip Modal -->

@@ -24,29 +24,37 @@ window.addEventListener('DOMContentLoaded', async function() {
   }
   if (window.map) {
     window.map.invalidateSize();
-    // Long-press → add pin at that location
-    let pressTimer;
-    window.map.on('mousedown', e => {
-      if (!e.originalEvent.target.closest('.marker-popup') && !e.originalEvent.target.closest('.waypoint-marker')) {
-        pressTimer = setTimeout(() => {
-          if (typeof window.openWaypointModal === 'function') {
-            window.openWaypointModal(e.latlng.lat, e.latlng.lng);
-          }
-        }, 600);
+    // Click on empty map → add pin at that location
+    // (Long-press still works on touch devices below.)
+    window.map.on('click', e => {
+      const tgt = e.originalEvent.target;
+      // Ignore clicks on existing markers, popups, or controls
+      if (tgt.closest('.leaflet-marker-icon') || tgt.closest('.leaflet-popup') ||
+          tgt.closest('.leaflet-control') || tgt.closest('.waypoint-marker')) return;
+      if (typeof window.openWaypointModal === 'function') {
+        window.openWaypointModal(e.latlng.lat, e.latlng.lng);
       }
     });
-    window.map.on('mouseup', () => clearTimeout(pressTimer));
+    // Touch long-press fallback (some mobile browsers don't fire click cleanly)
+    let pressTimer, pressMoved = false;
     window.map.on('touchstart', e => {
-      if (!e.originalTarget.closest('.marker-popup') && !e.originalTarget.closest('.waypoint-marker')) {
-        pressTimer = setTimeout(() => {
-          if (typeof window.openWaypointModal === 'function') {
-            const touch = e.touches[0];
-            window.openWaypointModal(touch.latLng.lat, touch.latLng.lng);
-          }
-        }, 600);
-      }
+      pressMoved = false;
+      const tgt = e.originalEvent && e.originalEvent.target;
+      if (tgt && (tgt.closest('.leaflet-marker-icon') || tgt.closest('.leaflet-popup') || tgt.closest('.leaflet-control'))) return;
+      pressTimer = setTimeout(() => {
+        if (!pressMoved && typeof window.openWaypointModal === 'function') {
+          // Use Leaflet's containerPointToLatLng for the touch position
+          const touch = e.touches && e.touches[0];
+          if (!touch) return;
+          const rect = window.map.getContainer().getBoundingClientRect();
+          const point = window.L.point(touch.clientX - rect.left, touch.clientY - rect.top);
+          const ll = window.map.containerPointToLatLng(point);
+          window.openWaypointModal(ll.lat, ll.lng);
+        }
+      }, 500);
     }, { passive: true });
-    window.map.on('touchend', () => clearTimeout(pressTimer));
+    window.map.on('touchmove', () => { pressMoved = true; clearTimeout(pressTimer); }, { passive: true });
+    window.map.on('touchend', () => clearTimeout(pressTimer), { passive: true });
   }
   initTheme();
   await loadTrips();
@@ -105,10 +113,18 @@ window.closeFAB = function() { document.getElementById('fabMenu').style.display 
 window.newTrip = function() { closeFAB(); openTripModal(); };
 window.addCurrentPin = function() {
   closeFAB();
-  if (state.selectedWaypoint) {
+  // Prefer the selected waypoint's location, otherwise fall back to map center.
+  var lat, lng;
+  if (state.selectedWaypoint && state.waypoints.get(state.selectedWaypoint)) {
     var wp = state.waypoints.get(state.selectedWaypoint);
-    if (wp) openWaypointModal(wp.lat, wp.lng);
+    lat = wp.lat; lng = wp.lng;
+  } else if (window.map) {
+    var c = window.map.getCenter();
+    lat = c.lat; lng = c.lng;
+  } else {
+    return;
   }
+  openWaypointModal(lat, lng);
 };
 window.exploreCurrentPin = function() {
   closeFAB();
@@ -518,6 +534,7 @@ window.openSyncModal = function() { openModal('settingsModal'); };
 
 // ─── Explore ──────────────────────────────────────────────────────────────
 window.doExplore = async function(lat, lng) {
+  document.getElementById('exploreBar').style.display = 'flex';
   var results = document.getElementById('exploreResults');
   results.innerHTML = '<p style="font-size:0.8rem;color:var(--fg-muted);padding:8px">Searching...</p>';
   try {
@@ -595,18 +612,16 @@ window.undoLast = async function() {
 // ─── Modal helpers ────────────────────────────────────────────────────────
 window.openModal = function(id) {
   var m = document.getElementById(id);
-  m.style.display = '';
-  m.style.opacity = '0';
-  requestAnimationFrame(function() {
-    m.style.transition = 'opacity 0.15s';
-    m.style.opacity = '1';
-  });
+  if (!m) return;
+  m.classList.add('is-open');
+  m.style.display = 'flex';
 };
 
 window.closeModal = function(id) {
   var m = document.getElementById(id);
-  m.style.opacity = '0';
-  setTimeout(function() { m.style.display = 'none'; }, 150);
+  if (!m) return;
+  m.classList.remove('is-open');
+  m.style.display = 'none';
 };
 
 // ─── Shared trip check ────────────────────────────────────────────────────
@@ -675,11 +690,6 @@ window.selectPhotoFolder = async function() {
 // ─── Utilities ────────────────────────────────────────────────────────────
 function escHtml(s) { if (!s) return ''; return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function debounce(fn, ms) { var t; return function() { var args = arguments; clearTimeout(t); t = setTimeout(function() { fn.apply(null, args); }, ms); }; }
-
-window.openWaypointModal = function(lat, lng) {
-  // Stub - calls existing main.js implementation if available
-  if (typeof showAddModal === 'function') showAddModal(L.latLng(lat, lng));
-};
 
 // ─── Waypoint modal ───────────────────────────────────────────────────────
 window.openWaypointModal = function(lat, lng, wp) {
@@ -774,32 +784,3 @@ window.deleteWaypoint = async function(wpId) {
   document.getElementById('timeline').style.display = state.waypoints.size > 1 ? '' : 'none';
   renderTimeline();
 };
-
-// ─── Map click to add pin ─────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', function() {
-  // Map click → deselect (unless clicking a marker), long-press → add pin
-  if (window.map) {
-    let pressTimer;
-    window.map.on('mousedown', e => {
-      if (e.originalEvent.target.id === 'map' || e.originalEvent.target.closest('.leaflet-container')) {
-        pressTimer = setTimeout(() => {
-          if (typeof window.openWaypointModal === 'function') {
-            window.openWaypointModal(e.latlng.lat, e.latlng.lng);
-          }
-        }, 600);
-      }
-    });
-    window.map.on('mouseup', () => clearTimeout(pressTimer));
-    window.map.on('touchstart', e => {
-      if (e.originalTarget.id === 'map' || e.originalTarget.closest('.leaflet-container')) {
-        pressTimer = setTimeout(() => {
-          if (typeof window.openWaypointModal === 'function') {
-            const touch = e.touches[0];
-            window.openWaypointModal(touch.latLng.lat, touch.latLng.lng);
-          }
-        }, 600);
-      }
-    }, { passive: true });
-    window.map.on('touchend', () => clearTimeout(pressTimer));
-  }
-});

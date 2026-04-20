@@ -607,6 +607,12 @@ window.showWaypointDetails = showWaypointDetails;
 window.handleWaypointClick = handleWaypointClick;
 window.renderTimeline = renderTimeline;
 
+// Expose core module state for app-new.js (which references via window.*)
+window.state = state;
+window.db = db;
+window.showAddModal = showAddModal;
+window.addWaypoint = addWaypoint;
+
 // --------------------------------------------------------------
 // 2️⃣4️⃣ UI helpers & event wiring (run after DOM is ready)
 // --------------------------------------------------------------
