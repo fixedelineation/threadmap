@@ -137,22 +137,31 @@
 .timeline-legend { display: flex; gap: 12px; font-size: 0.7rem; color: var(--fg-muted); margin-top: 4px; }
 
 /* ── FAB ───────────────────────────────── */
-.fab-btn {
-  border-radius: 8px;
+.fab-btn, .fab {
+  border-radius: 50%;
   border: none;
   background: var(--accent);
   color: #fff;
-  font-size: 20px;
-  font-weight: 400;
+  font-size: 28px;
+  font-weight: 300;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(99,102,241,0.4);
-  flex-shrink: 0;
+  box-shadow: 0 6px 20px rgba(99,102,241,0.55);
+  transition: transform 0.15s, box-shadow 0.15s;
 }
-
-.fab-btn:active { transform: scale(0.96); }
+.fab {
+  position: absolute;
+  bottom: 24px;
+  right: 24px;
+  width: 60px;
+  height: 60px;
+  z-index: 60;
+  line-height: 1;
+}
+.fab:hover { transform: scale(1.08); box-shadow: 0 8px 24px rgba(99,102,241,0.65); }
+.fab:active, .fab-btn:active { transform: scale(0.96); }
 
 /* ── Trip banner ────────────────────────── */
 .trip-banner {
