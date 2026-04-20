@@ -161,6 +161,29 @@
   line-height: 1;
 }
 .fab:hover { transform: scale(1.08); box-shadow: 0 8px 24px rgba(99,102,241,0.65); }
+
+/* Map overlay buttons (e.g. Explore) */
+.map-btn {
+  position: absolute;
+  z-index: 55;
+  background: rgba(18,18,26,0.94);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border);
+  color: var(--fg);
+  padding: 8px 14px;
+  border-radius: 22px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+  transition: background 0.15s, transform 0.1s;
+}
+.map-btn:hover { background: var(--bg-overlay); }
+.map-btn:active { transform: scale(0.97); }
+.map-btn-explore { top: 16px; left: 16px; }
 .fab:active, .fab-btn:active { transform: scale(0.96); }
 
 /* ── Trip banner ────────────────────────── */
@@ -194,7 +217,7 @@
 
 /* ── FAB menu ─────────────────────────────────── */
 .fab-menu {
-  position: fixed; bottom: 80px; right: 24px; z-index: 300;
+  position: fixed; top: 60px; right: 24px; z-index: 300;
   background: var(--bg-raised); border: 1px solid var(--border);
   border-radius: 14px; padding: 6px;
   box-shadow: 0 8px 28px rgba(0,0,0,0.55);

@@ -6,8 +6,8 @@ html, body {
   overflow: hidden;
 }
 
-/* Hide default Leaflet markers (we use custom pins) */
-.leaflet-container .leaflet-marker-icon {
+/* Hide default Leaflet image markers, keep our custom div-icon pins */
+.leaflet-container img.leaflet-marker-icon {
   display: none;
 }
 

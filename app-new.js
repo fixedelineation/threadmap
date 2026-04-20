@@ -126,6 +126,25 @@ window.addCurrentPin = function() {
   }
   openWaypointModal(lat, lng);
 };
+// Toggle Explore bar — uses selected pin, otherwise map center
+window.toggleExplore = function() {
+  var bar = document.getElementById('exploreBar');
+  if (bar.style.display === 'flex' || getComputedStyle(bar).display === 'flex') {
+    bar.style.display = 'none';
+    return;
+  }
+  var lat, lng;
+  if (state.selectedWaypoint && state.waypoints.get(state.selectedWaypoint)) {
+    var w = state.waypoints.get(state.selectedWaypoint);
+    lat = w.lat; lng = w.lng;
+  } else if (window.map) {
+    var c = window.map.getCenter();
+    lat = c.lat; lng = c.lng;
+  } else { return; }
+  switchExplore('nearby');
+  doExplore(lat, lng);
+};
+
 window.exploreCurrentPin = function() {
   closeFAB();
   if (state.selectedWaypoint) {
@@ -694,11 +713,14 @@ function debounce(fn, ms) { var t; return function() { var args = arguments; cle
 // ─── Waypoint modal ───────────────────────────────────────────────────────
 window.openWaypointModal = function(lat, lng, wp) {
   wp = wp || null;
+  // Default new pins to today's date (ISO yyyy-mm-dd)
+  var today = new Date();
+  var todayIso = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
   document.getElementById('waypointModalTitle').textContent = wp ? 'Edit Pin' : 'Add Pin';
   document.getElementById('wpName').value = wp ? (wp.name || '') : '';
   document.getElementById('wpType').value = wp ? (wp.type || 'pin') : 'pin';
   document.getElementById('wpTags').value = wp ? (wp.tags || '') : '';
-  document.getElementById('wpDate').value = wp ? (wp.date || '') : '';
+  document.getElementById('wpDate').value = wp ? (wp.date || todayIso) : todayIso;
   document.getElementById('wpNotes').value = wp ? (wp.notes || '') : '';
   document.getElementById('wpLat').value = lat;
   document.getElementById('wpLng').value = lng;
@@ -755,7 +777,7 @@ window.saveWaypointModal = async function() {
 async function addWaypointToMap(lat, lng, wpData) {
   var wpId = wpData.id;
   state.waypoints.set(wpId, wpData);
-  var icon = makePinIcon ? makePinIcon(wpData) : undefined;
+  var icon = (typeof window.makePinIcon === 'function') ? window.makePinIcon(wpData) : undefined;
   var m = L.marker([lat, lng], icon ? { icon: icon } : {}).addTo(map);
   m.on('click', function() { handleWaypointClick(wpId, m); });
   m.on('contextmenu', function(e) { L.DomEvent.stopPropagation(e); showWaypointDetails(wpId); });
