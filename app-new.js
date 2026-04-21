@@ -18,9 +18,12 @@ window.addEventListener('DOMContentLoaded', async function() {
       const check = setInterval(() => {
         if (window.mapReady) { clearInterval(check); resolve(); }
       }, 100);
-      // Timeout after 5s
       setTimeout(() => { clearInterval(check); resolve(); }, 5000);
     });
+  }
+  // Also wait for Dexie DB to be ready (version migration complete)
+  if (window.db && window.db.isOpen !== undefined && !window.db.isOpen()) {
+    await window.db.open().catch(() => {});
   }
   if (window.map) {
     window.map.invalidateSize();
@@ -57,8 +60,8 @@ window.addEventListener('DOMContentLoaded', async function() {
     window.map.on('touchend', () => clearTimeout(pressTimer), { passive: true });
   }
   initTheme();
-  await loadTrips();
-  await renderCalendar();
+  try { await loadTrips(); } catch(e) { console.warn('loadTrips:', e); }
+  try { await renderCalendar(); } catch(e) { console.warn('renderCalendar:', e); }
   await updateTrashBadge();
   updateSyncStatus();
   checkSharedTrip();
@@ -389,6 +392,7 @@ window.calNav = function(dir) {
 };
 
 async function renderCalendar() {
+  try {
   var grid = document.getElementById('calGrid');
   var label = document.getElementById('calMonthLabel');
   if (!grid) return;
@@ -418,7 +422,7 @@ async function renderCalendar() {
     html += '<div class="cal-day' + (isToday ? ' today' : '') + (hasTrip ? ' has-trip' : '') + (hasPin ? ' has-pin' : '') + '" onclick="calDayClick(' + d + ')">' + d + (hasPin ? '<span class="pin-dot"></span>' : '') + '</div>';
   }
   grid.innerHTML = html;
-}
+  } catch(e) { console.warn('renderCalendar error:', e); } }
 
 window.calDayClick = async function(day) {
   var detail = document.getElementById('calDayDetail');

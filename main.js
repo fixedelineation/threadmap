@@ -121,7 +121,7 @@ function makePinIcon(wp) {
   });
 }
 var travelColors = { walk:'#22d3ee', bike:'#a3e635', car:'#fb923c', train:'#60a5fa', fly:'#c084fc', boat:'#38bdf8' };
-var stringGroup = null;
+var stringGroup = null; // set properly in initMap() after map exists
 window.makePinIcon = makePinIcon;
 
 export function initMap() {
@@ -266,7 +266,8 @@ async function connectWaypoints(fromId, toId) {
 // 🔟 Render all strings (lines) – macro vs. micro view
 // --------------------------------------------------------------
 export async function renderStrings() {
-    if (!map || !state.trip) { stringGroup.clearLayers(); return; }
+    if (!map || !state.trip) return;
+    if (!stringGroup) stringGroup = L.layerGroup().addTo(map);
     stringGroup.clearLayers();
     const strings = await db.strings.where('tripId').equals(state.trip.id).toArray();
     for (const s of strings) {
@@ -283,9 +284,9 @@ export async function renderStrings() {
         const dash = s.mode === 'walk' ? '6 4' : s.mode === 'bike' ? '4 3' : null;
         L.polyline(coords, { color: lineColor, weight: 2.5, opacity: 0.75, dashArray: dash }).addTo(stringGroup);
       }
-window.renderStrings = renderStrings;
     }
   }
+  window.renderStrings = renderStrings;
 
 // --------------------------------------------------------------
 // 1️⃣4️⃣ Load photos for a waypoint (grid view)
