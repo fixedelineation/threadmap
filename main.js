@@ -148,6 +148,7 @@ export function initMap() {
   window.map = map;
   window.mapReady = true;
   stringGroup = L.layerGroup().addTo(map);
+  window.stringGroup = stringGroup;
 
   return map;
 }
@@ -524,9 +525,19 @@ window.addWaypoint = addWaypoint;
 // 2️⃣4️⃣ UI helpers & event wiring (run after DOM is ready)
 // --------------------------------------------------------------
 // Minimal init - new UI handled by app-new.js
-document.addEventListener('DOMContentLoaded', () => {
-  try { initMap(); } catch(e) { console.warn('initMap error:', e); }
-});
+// Modules are deferred — DOMContentLoaded may have already fired by now.
+// Run initMap immediately if DOM is already ready.
+(function initOnReady() {
+  if (document.readyState !== 'loading') {
+    window.mapReady = true;
+    try { initMap(); } catch(e) { console.warn('initMap error:', e); }
+  } else {
+    document.addEventListener('DOMContentLoaded', () => {
+      window.mapReady = true;
+      try { initMap(); } catch(e) { console.warn('initMap error:', e); }
+    });
+  }
+})();
 
 /* --------------------------------------------------------------
    2️⃣5️⃣ Photo upload helper (stores blob in Dexie)

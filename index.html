@@ -210,6 +210,43 @@
 <span class="fab-icon">&#128205;</span><span>Add My Location</span>
 </button>
 </div>
+<!-- Inline init: runs after Dexie and Leaflet CDNs have loaded -->
+<script>
+(function() {
+  function waitForAll(cb, tries) {
+    if (typeof Dexie !== 'undefined' && typeof L !== 'undefined' && L.map) {
+      cb(); return;
+    }
+    if (tries <= 0) { console.warn('Dexie or Leaflet never loaded'); return; }
+    setTimeout(waitForAll.bind(null, cb, tries - 1), 100);
+  }
+  waitForAll(function() {
+    // Don't re-init if already done
+    if (window.mapReady) return;
+
+    // Init global state + Dexie
+    window.state = { trip: null, selectedWaypoint: null, markers: new Map(), lines: new Map(), waypoints: new Map(), markerMap: new Map(), strings: new Map(), poiMarkers: [] };
+    window.db = new Dexie('ThreadMapDB');
+    window.db.version(3).stores({
+      trips: '++id, name, created, status',
+      waypoints: '++id, tripId, lat, lng, layer, date, type, name, tags, status, rating, tripName',
+      strings: '++id, tripId, fromId, toId, mode, geometry',
+      photos: '++id, waypointId, date'
+    });
+
+    // Init Leaflet map
+    var mapEl = document.getElementById('map');
+    if (!mapEl) { console.warn('no #map'); return; }
+    var m = L.map('map', { zoomControl: false, attributionControl: false }).setView([48.8566, 2.3522], 5);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(m);
+    L.control.zoom({ position: 'topright' }).addTo(m);
+    window.map = m;
+    window.mapReady = true;
+    window.dispatchEvent(new Event('mapReady'));
+    window.db.open().catch(function(e) { console.warn('db open error:', e); });
+  }, 50);
+})();
+</script>
 <script type="module" src="/main.js"></script>
 <script type="module" src="/share.js"></script>
 <script type="module" src="/app-new.js"></script>

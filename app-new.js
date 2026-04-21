@@ -1,7 +1,9 @@
 // app-new.js - ThreadMaps new UI layer
-// Removed broken import - accessing globals via window
+// Uses window.db, window.state, window.map set by inline init in index.html
 import { shareTrip, getSyncStatus, requestSyncFolder, syncToFolder, syncFromFolder, requestPhotoFolder, decryptTrip, loadSharedTrip, shareViaNostr } from './share.js';
-import { db, state, map, renderStrings } from './main.js';
+// db/state/map imported from inline script globals (see index.html)
+// renderStrings may not be available if main.js module had errors — provide no-op fallback
+if (typeof renderStrings !== 'function') window.renderStrings = async function() {};
 
 const TRASH_DAYS = 7;
 var calYear = new Date().getFullYear();
@@ -12,13 +14,11 @@ var sortMode = 'sequence';
 var lightMode = localStorage.getItem('tm_theme') === 'light';
 
 window.addEventListener('DOMContentLoaded', async function() {
-  // Wait for main.js to init the Leaflet map (it runs after us)
+  // Wait for main.js to init the Leaflet map
   if (!window.mapReady) {
     await new Promise(resolve => {
-      const check = setInterval(() => {
-        if (window.mapReady) { clearInterval(check); resolve(); }
-      }, 100);
-      setTimeout(() => { clearInterval(check); resolve(); }, 5000);
+      window.addEventListener('mapReady', () => resolve(), { once: true });
+      setTimeout(resolve, 3000);
     });
   }
   // Also wait for Dexie DB to be ready (version migration complete)
