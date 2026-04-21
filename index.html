@@ -54,7 +54,6 @@
 <div class="sidebar-tabs">
 <button class="sidebar-tab active" onclick="switchSidebarView('trips')">Trips</button>
 <button class="sidebar-tab" onclick="switchSidebarView('calendar')">Calendar</button>
-<button class="sidebar-tab" onclick="switchSidebarView('trash')">Trash <span class="badge" id="trashBadge" style="display:none">0</span></button>
 </div>
 <div id="tripsView" class="sidebar-content"><div class="trip-list" id="tripList"></div></div>
 <div id="calendarView" class="sidebar-content" style="display:none">
@@ -66,13 +65,7 @@
 <div class="cal-grid" id="calGrid"></div>
 <div id="calDayDetail" style="display:none"></div>
 </div>
-<div id="trashView" class="sidebar-content" style="display:none">
-<div class="trash-info">
-<span>Auto-deleted after 7 days</span>
-<button class="btn-sm btn-ghost" onclick="emptyTrashAll()">Empty now</button>
-</div>
-<div id="trashList"></div>
-</div>
+<!-- trashView in settings only -->
 <div id="timeline" class="timeline-bar" style="display:none">
 <div class="timeline-scroll" id="timelineScroll"></div>
 <div class="timeline-legend">
@@ -154,6 +147,8 @@
 </div>
 </div>
 </div>
+<!-- Trash hidden store (shown in settings) -->
+<div id="trashList" style="display:none"></div>
 <!-- Share Modal -->
 <div id="shareModal" class="modal" role="dialog">
 <div class="modal-header">
@@ -254,9 +249,27 @@
     <input type="hidden" id="wpEditId">
     <div class="modal-actions">
       <button class="btn btn-primary" id="wpSaveBtn" onclick="saveWaypointModal()">Save Pin</button>
+      <button class="btn btn-ghost" id="wpConnectBtn" onclick="startConnectPin()" style="display:none">🔗 Connect</button>
     </div>
   </div>
 </div>
 
+
+<!-- Travel Modal -->
+<div id="travelModal" class="modal" style="display:none;opacity:0">
+  <div class="modal-box" style="max-width:360px">
+    <h3 class="modal-title">Connect Pins</h3>
+    <p id="travelModalDesc" style="font-size:0.85rem;color:var(--fg-muted);margin-bottom:16px">Choose how you traveled between these two pins.</p>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px">
+      <button class="travel-mode-btn" onclick="selectTravelMode('walk')">🚶 Walk</button>
+      <button class="travel-mode-btn" onclick="selectTravelMode('bike')">🚲 Bike</button>
+      <button class="travel-mode-btn" onclick="selectTravelMode('car')">🚗 Drive</button>
+      <button class="travel-mode-btn" onclick="selectTravelMode('train')">🚆 Train</button>
+      <button class="travel-mode-btn" onclick="selectTravelMode('fly')">✈️ Fly</button>
+      <button class="travel-mode-btn" onclick="selectTravelMode('boat')">⛵ Boat</button>
+    </div>
+    <button class="btn btn-ghost" style="width:100%" onclick="closeModal('travelModal')">Cancel</button>
+  </div>
+</div>
 </body>
 </html>

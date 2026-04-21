@@ -255,7 +255,7 @@ async function connectWaypoints(fromId, toId) {
   const from = await db.waypoints.get(fromId);
   const to   = await db.waypoints.get(toId);
   const geometry = await fetchRoute(from, to, mode);
-  await db.strings.add({ tripId: 1, fromId, toId, mode, geometry });
+  await db.strings.add({ tripId: state.trip ? state.trip.id : 1, fromId, toId, mode, geometry });
   renderStrings();
 }
 
@@ -267,7 +267,8 @@ async function renderStrings() {
   state.lines.clear();
 
   const zoom = map.getZoom();
-  const strings = await db.strings.toArray();
+  if (!state.trip) return;  // no active trip — don't render orphan lines
+  const strings = await db.strings.where('tripId').equals(state.trip.id).toArray();
 
   for (const s of strings) {
     const from = await db.waypoints.get(s.fromId);
@@ -317,7 +318,13 @@ export function showAddModal(latlng) {
 // 1️⃣3️⃣ Show details for a saved waypoint (side‑sheet)
 // --------------------------------------------------------------
 export async function showWaypointDetails(id) {
+  // Use the new waypoint modal from app-new.js if available
+  if (typeof window.openWaypointModal === 'function') {
+    const wp = await db.waypoints.get(id);
+    if (wp) { window.openWaypointModal(wp.lat, wp.lng, wp); return; }
+  }
   const sheet = document.getElementById('detail-sheet');
+  if (!sheet) return;
   sheet.style.transform = 'translateY(0)';
   document.getElementById('waypoint-id').value = id;
 

@@ -287,6 +287,8 @@ window.selectTrip = async function(id) {
   document.getElementById('timeline').style.display = wps.length > 1 ? '' : 'none';
   document.getElementById('timelineControls').style.display = wps.length > 1 ? '' : 'none';
   renderTimeline();
+  if (typeof renderStrings === 'function') renderStrings();
+  await renderCalendar();
   await loadTrips();
 };
 
@@ -355,11 +357,22 @@ async function renderCalendar() {
   var today = new Date();
   var html = '<div class="cal-hdr">Su</div><div class="cal-hdr">Mo</div><div class="cal-hdr">Tu</div><div class="cal-hdr">We</div><div class="cal-hdr">Th</div><div class="cal-hdr">Fr</div><div class="cal-hdr">Sa</div>';
   for (var i = 0; i < firstDay; i++) html += '<div class="cal-day other-month"></div>';
+  // Collect all waypoint dates for this month
+  var allWaypoints = await db.waypoints.toArray();
+  var pinDays = new Set();
+  allWaypoints.forEach(function(wp) {
+    if (!wp.date) return;
+    var d = new Date(wp.date);
+    if (d.getFullYear() === calYear && d.getMonth() === calMonth) {
+      pinDays.add(d.getDate());
+    }
+  });
   var trips = await db.trips.toArray();
   for (var d = 1; d <= daysInMonth; d++) {
     var isToday = today.getFullYear() === calYear && today.getMonth() === calMonth && today.getDate() === d;
     var hasTrip = trips.some(function(t) { return t.startDate && new Date(t.startDate).getFullYear() === calYear && new Date(t.startDate).getMonth() === calMonth && new Date(t.startDate).getDate() === d; });
-    html += '<div class="cal-day' + (isToday ? ' today' : '') + (hasTrip ? ' has-trip' : '') + '" onclick="calDayClick(' + d + ')">' + d + '</div>';
+    var hasPin = pinDays.has(d);
+    html += '<div class="cal-day' + (isToday ? ' today' : '') + (hasTrip ? ' has-trip' : '') + (hasPin ? ' has-pin' : '') + '" onclick="calDayClick(' + d + ')">' + d + (hasPin ? '<span class="pin-dot"></span>' : '') + '</div>';
   }
   grid.innerHTML = html;
 }
@@ -368,13 +381,20 @@ window.calDayClick = async function(day) {
   var detail = document.getElementById('calDayDetail');
   detail.style.display = '';
   var dateStr = calYear + '-' + String(calMonth + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
-  var trips = await db.trips.where('startDate').equals(dateStr).toArray();
   var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   var html = '<div class="cal-day-title">' + months[calMonth] + ' ' + day + '</div>';
+  // Show pins on this day
+  var pins = await db.waypoints.where('date').equals(dateStr).toArray();
+  if (pins.length) {
+    pins.forEach(function(wp) { html += '<div class="cal-wp" onclick="handleWaypointClick(' + wp.id + ')" style="cursor:pointer">&#128205; <b>' + escHtml(wp.name || 'Pin') + '</b></div>'; });
+  }
+  // Show trips starting on this day
+  var trips = await db.trips.where('startDate').equals(dateStr).toArray();
   if (trips.length) {
-    trips.forEach(function(t) { html += '<div class="cal-wp">&#128205; <b>' + escHtml(t.name) + '</b> <span style="color:var(--fg-muted)">' + (t.status||'planning') + '</span></div>'; });
-  } else {
-    html += '<p style="font-size:0.8rem;color:var(--fg-muted)">No trips on this day.</p>';
+    trips.forEach(function(t) { html += '<div class="cal-wp">&#127758; <b>' + escHtml(t.name) + '</b> <span style="color:var(--fg-muted)">' + (t.status||'planning') + '</span></div>'; });
+  }
+  if (!pins.length && !trips.length) {
+    html += '<p style="font-size:0.8rem;color:var(--fg-muted)">Nothing on this day.</p>';
   }
   detail.innerHTML = html;
 };
@@ -493,8 +513,21 @@ window.openWpFromSearch = async function(id) {
 
 window.toggleSidebar = function() {
   var sb = document.getElementById('sidebar');
-  sb.style.display = sb.style.display === 'none' ? 'flex' : 'none';
-  map.invalidateSize();
+  var isMobile = window.innerWidth <= 768;
+  if (isMobile) {
+    // Mobile: toggle the .open class (positioned fixed overlay)
+    sb.classList.toggle('open');
+  } else {
+    // Desktop: hide/show inline — remove inline style to restore CSS, or set to none
+    if (sb.dataset.hidden === '1') {
+      sb.dataset.hidden = '0';
+      sb.style.display = '';
+    } else {
+      sb.dataset.hidden = '1';
+      sb.style.display = 'none';
+    }
+  }
+  if (window.map) map.invalidateSize();
 };
 
 window.closeSidebar = function() { document.getElementById('sidebar').style.display = 'none'; map.invalidateSize(); };
@@ -711,12 +744,77 @@ function escHtml(s) { if (!s) return ''; return s.replace(/&/g,'&amp;').replace(
 function debounce(fn, ms) { var t; return function() { var args = arguments; clearTimeout(t); t = setTimeout(function() { fn.apply(null, args); }, ms); }; }
 
 // ─── Waypoint modal ───────────────────────────────────────────────────────
+// ─── Pin Connection (Travel) ─────────────────────────────────────────────
+var connectingFromId = null;  // pin we're connecting FROM
+var connectingResolve = null; // promise resolver for mode selection
+
+window.selectTravelMode = function(mode) {
+  if (connectingResolve) { connectingResolve(mode); connectingResolve = null; }
+  closeModal('travelModal');
+};
+
+// Override showModeSelector from main.js to use our modal
+window.showModeSelector = function() {
+  return new Promise(function(resolve) {
+    connectingResolve = resolve;
+    openModal('travelModal');
+  });
+};
+
+window.startConnectPin = function() {
+  // Set the currently open waypoint as the "from" pin, then wait for another tap
+  var wpId = document.getElementById('wpId') ? parseInt(document.getElementById('wpId').value) : null;
+  if (!wpId) return;
+  connectingFromId = wpId;
+  closeModal('waypointModal');
+  // Show a toast / banner
+  var banner = document.createElement('div');
+  banner.id = 'connectBanner';
+  banner.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);background:var(--accent);color:#fff;padding:10px 20px;border-radius:8px;z-index:500;font-size:0.9rem;pointer-events:none';
+  banner.textContent = 'Now tap another pin to connect it';
+  document.body.appendChild(banner);
+};
+
+// Hook into handleWaypointClick to detect connect mode
+var _origHandleClick = window.handleWaypointClick;
+window.handleWaypointClick = async function(id, marker) {
+  var banner = document.getElementById('connectBanner');
+  if (connectingFromId && connectingFromId !== id) {
+    if (banner) banner.remove();
+    // Ask travel mode
+    var mode = await window.showModeSelector();
+    if (mode && typeof connectWaypoints === 'function') {
+      await connectWaypoints(connectingFromId, id, mode);
+    } else if (mode && window.db && window.state && window.state.trip) {
+      await window.db.strings.add({ tripId: window.state.trip.id, fromId: connectingFromId, toId: id, mode: mode, geometry: null });
+      if (typeof renderStrings === 'function') renderStrings();
+    }
+    connectingFromId = null;
+    return;
+  }
+  if (banner) banner.remove();
+  connectingFromId = null;
+  if (_origHandleClick) return _origHandleClick(id, marker);
+};
+
 window.openWaypointModal = function(lat, lng, wp) {
   wp = wp || null;
   // Default new pins to today's date (ISO yyyy-mm-dd)
   var today = new Date();
   var todayIso = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
   document.getElementById('waypointModalTitle').textContent = wp ? 'Edit Pin' : 'Add Pin';
+  var connectBtn = document.getElementById('wpConnectBtn');
+  if (connectBtn) connectBtn.style.display = (wp && wp.id) ? '' : 'none';
+  if (wp && wp.id) {
+    var wpIdEl = document.getElementById('wpId');
+    if (!wpIdEl) {
+      wpIdEl = document.createElement('input');
+      wpIdEl.type = 'hidden';
+      wpIdEl.id = 'wpId';
+      document.getElementById('waypointModal').appendChild(wpIdEl);
+    }
+    wpIdEl.value = wp.id;
+  }
   document.getElementById('wpName').value = wp ? (wp.name || '') : '';
   document.getElementById('wpType').value = wp ? (wp.type || 'pin') : 'pin';
   document.getElementById('wpTags').value = wp ? (wp.tags || '') : '';

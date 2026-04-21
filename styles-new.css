@@ -480,4 +480,20 @@ body #app { height: auto !important; min-height: 0 !important; flex: 1 1 0% !imp
   color: var(--fg);
 }
 .photo-pick-row { display: flex; gap: 8px; }
+/* ── Travel mode selector ───────────────────── */
+.travel-mode-btn {
+  padding: 12px 8px; border: 1.5px solid var(--border); border-radius: 8px;
+  background: var(--bg-raised); color: var(--fg); cursor: pointer;
+  font-size: 0.85rem; text-align: center; transition: background 0.15s, border-color 0.15s;
+}
+.travel-mode-btn:hover, .travel-mode-btn.selected {
+  background: var(--accent); border-color: var(--accent); color: #fff;
+}
 
+/* ── Calendar pin dots ──────────────────────── */
+.cal-day { position: relative; }
+.pin-dot {
+  display: block; width: 5px; height: 5px; border-radius: 50%;
+  background: var(--accent); margin: 0 auto; margin-top: 2px;
+}
+.cal-day.has-pin { font-weight: 600; }
