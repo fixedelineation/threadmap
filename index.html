@@ -79,11 +79,7 @@
 </aside>
 <main id="mapWrap" class="map-wrap">
 <div id="map"></div>
-<button class="map-btn map-btn-explore" id="exploreToggle" onclick="toggleExplore()" title="Explore nearby places">
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-  <span>Explore</span>
-</button>
-<button class="fab" id="fabBtn" onclick="openFAB()" title="Add">+</button>
+</main>
 <div id="tripBanner" class="trip-banner" style="display:none">
 <div class="banner-info">
 <span class="banner-name" id="tripBannerName"></span>
@@ -109,6 +105,11 @@
 <button class="tl-sort-btn" data-sort="date" onclick="sortWaypoints('date')">Date</button>
 <button class="tl-sort-btn" data-sort="alpha" onclick="sortWaypoints('alpha')">A-Z</button>
 </div>
+<button class="map-btn map-btn-explore" id="exploreToggle" onclick="toggleExplore()" title="Explore nearby places">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+  <span>Explore</span>
+</button>
+<button class="fab" id="fabBtn" onclick="openFAB()" title="Add">+</button>
 </main>
 </div>
 <!-- Trip Modal -->
@@ -293,7 +294,7 @@
 
 
 <!-- Travel Modal -->
-<div id="travelModal" class="modal" style="display:none;opacity:0">
+<div id="travelModal" class="modal">
   <div class="modal-box" style="max-width:360px">
     <h3 class="modal-title">Connect Pins</h3>
     <p id="travelModalDesc" style="font-size:0.85rem;color:var(--fg-muted);margin-bottom:16px">Choose how you traveled between these two pins.</p>

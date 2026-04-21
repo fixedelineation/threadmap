@@ -2,8 +2,9 @@
 // Uses window.db, window.state, window.map set by inline init in index.html
 import { shareTrip, getSyncStatus, requestSyncFolder, syncToFolder, syncFromFolder, requestPhotoFolder, decryptTrip, loadSharedTrip, shareViaNostr } from './share.js';
 // db/state/map imported from inline script globals (see index.html)
-// renderStrings may not be available if main.js module had errors — provide no-op fallback
+// renderStrings/renderTimeline may not be available if main.js module had errors — provide no-op fallback
 if (typeof renderStrings !== 'function') window.renderStrings = async function() {};
+if (typeof renderTimeline !== 'function') window.renderTimeline = function() {};
 
 const TRASH_DAYS = 7;
 var calYear = new Date().getFullYear();
@@ -290,7 +291,7 @@ window.selectTrip = async function(id) {
   document.getElementById('timeline').style.display = wps.length > 1 ? '' : 'none';
   document.getElementById('timelineControls').style.display = wps.length > 1 ? '' : 'none';
   renderTimeline();
-  renderStrings();
+  if (typeof window.renderStrings === 'function') window.renderStrings();
   await renderCalendar();
   await loadTrips();
 };
@@ -378,7 +379,7 @@ function highlightTimelinePin(wpId) {
 function clearTimelineHighlight() {
   state.markerMap.forEach(function(m, id) {
     var el = m.getElement();
-    if (el) el.style.opacity = '';
+    if (el) { el.style.opacity = ''; el.classList.remove('highlighted'); }
   });
 }
 
@@ -390,6 +391,12 @@ window.calNav = function(dir) {
   if (calMonth > 11) { calMonth = 0; calYear++; }
   renderCalendar();
 };
+window.loadTrips = loadTrips;
+window.renderTimeline = renderTimeline;
+window.addWaypointToMap = addWaypointToMap;
+Object.defineProperty(window, 'calYear', { get: function() { return calYear; }, set: function(v) { calYear = v; } });
+Object.defineProperty(window, 'calMonth', { get: function() { return calMonth; }, set: function(v) { calMonth = v; } });
+window.calDayClick = calDayClick;
 
 async function renderCalendar() {
   try {
@@ -845,7 +852,6 @@ window.startConnectPin = function() {
 };
 
 // Hook into handleWaypointClick to detect connect mode
-var _origHandleClick = window.handleWaypointClick;
 window.handleWaypointClick = async function(id, marker) {
   var banner = document.getElementById('connectBanner');
   if (connectingFromId && connectingFromId !== id) {
@@ -863,7 +869,7 @@ window.handleWaypointClick = async function(id, marker) {
   }
   if (banner) banner.remove();
   connectingFromId = null;
-  if (_origHandleClick) return _origHandleClick(id, marker);
+  if (window._origHandleClick) return window._origHandleClick(id, marker);
 };
 
 window.openWaypointModal = function(lat, lng, wp) {
@@ -939,6 +945,7 @@ window.saveWaypointModal = async function() {
   document.getElementById('timeline').style.display = state.waypoints.size > 1 ? '' : 'none';
   document.getElementById('timelineControls').style.display = state.waypoints.size > 1 ? '' : 'none';
   renderTimeline();
+  if (typeof window.renderStrings === 'function') window.renderStrings();
 };
 
 async function addWaypointToMap(lat, lng, wpData) {
@@ -971,5 +978,5 @@ window.deleteWaypoint = async function(wpId) {
   state.selectedWaypoint = null;
   document.getElementById('tripBannerStats').textContent = (state.waypoints.size === 1 ? '1 pin' : state.waypoints.size + ' pins');
   document.getElementById('timeline').style.display = state.waypoints.size > 1 ? '' : 'none';
-  renderTimeline();
+  if (typeof window.renderStrings === 'function') window.renderStrings();
 };
