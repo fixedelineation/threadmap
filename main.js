@@ -511,8 +511,7 @@ function showToast(message, duration = 3000) {
 // --------------------------------------------------------------
 // 2️⃣3️⃣ Expose the detail‑sheet function globally (timeline uses it)
 // --------------------------------------------------------------
-window.showWaypointDetails = showWaypointDetails;
-window.handleWaypointClick = handleWaypointClick;
+// showWaypointDetails, handleWaypointClick, renderTimeline exposed by app-new.js
 window.renderTimeline = renderTimeline;
 
 // Expose core module state for app-new.js (which references via window.*)
@@ -527,14 +526,14 @@ window.addWaypoint = addWaypoint;
 // Minimal init - new UI handled by app-new.js
 // Modules are deferred — DOMContentLoaded may have already fired by now.
 // Run initMap immediately if DOM is already ready.
+// Map is already initialized by the inline <script> in index.html (which runs synchronously
+// before this ES module). Do NOT re-init — that would create a duplicate Leaflet map.
 (function initOnReady() {
   if (document.readyState !== 'loading') {
-    window.mapReady = true;
-    try { initMap(); } catch(e) { console.warn('initMap error:', e); }
+    // Map + stringGroup already set by inline script — just expose remaining globals
   } else {
     document.addEventListener('DOMContentLoaded', () => {
-      window.mapReady = true;
-      try { initMap(); } catch(e) { console.warn('initMap error:', e); }
+      // Map already initialized by then via inline script
     });
   }
 })();

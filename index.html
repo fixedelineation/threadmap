@@ -242,15 +242,16 @@
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(m);
     L.control.zoom({ position: 'topright' }).addTo(m);
     window.map = m;
+    window.stringGroup = L.layerGroup().addTo(m);
     window.mapReady = true;
     window.dispatchEvent(new Event('mapReady'));
     window.db.open().catch(function(e) { console.warn('db open error:', e); });
   }, 50);
 })();
 </script>
-<script type="module" src="/main.js"></script>
-<script type="module" src="/share.js"></script>
 <script type="module" src="/app-new.js"></script>
+<script type="module" src="/share.js"></script>
+<script type="module" src="/main.js"></script>
 
 <!-- Waypoint Modal -->
 <div id="waypointModal" class="modal" role="dialog">
@@ -273,7 +274,6 @@
         <option value="church">Church</option>
         <option value="shop">Shop</option>
         <option value="flight">Flight</option>
-        <option value="train">Train</option>
         <option value="boat">Boat</option>
         <option value="car">Car</option>
         <option value="walk">Walk</option>

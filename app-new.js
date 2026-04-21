@@ -3,7 +3,32 @@
 import { shareTrip, getSyncStatus, requestSyncFolder, syncToFolder, syncFromFolder, requestPhotoFolder, decryptTrip, loadSharedTrip, shareViaNostr } from './share.js';
 // db/state/map imported from inline script globals (see index.html)
 // renderStrings/renderTimeline may not be available if main.js module had errors — provide no-op fallback
-if (typeof renderStrings !== 'function') window.renderStrings = async function() {};
+var loadTrips, renderCalendar, updateTrashBadge, updateSyncStatus, checkSharedTrip, startTrashSweep, renderTimeline, addWaypointToMap, showWaypointDetails, handleWaypointClick, saveWaypointModal, deleteWaypoint;
+var travelColors = { walk:'#22d3ee', bike:'#a3e635', car:'#fb923c', train:'#60a5fa', fly:'#c084fc', boat:'#38bdf8' };
+window.renderStrings = async function() {
+  if (!window.map || !window.stringGroup) return;
+  if (!window.state || !window.state.trip) { window.stringGroup.clearLayers(); return; }
+  window.stringGroup.clearLayers();
+  try {
+    var strings = await window.db.strings.where('tripId').equals(window.state.trip.id).toArray();
+    for (var i = 0; i < strings.length; i++) {
+      var s = strings[i];
+      var coords = [];
+      if (s.fromId && s.toId) {
+        var from = await window.db.waypoints.get(s.fromId);
+        var to = await window.db.waypoints.get(s.toId);
+        if (from && to) coords = [[from.lat, from.lng], [to.lat, to.lng]];
+      } else if (s.geometry && s.geometry.coordinates) {
+        coords = s.geometry.coordinates.map(function(c) { return [c[1], c[0]]; });
+      }
+      if (coords.length >= 2) {
+        var lineColor = travelColors[s.mode] || '#6366f1';
+        var dash = s.mode === 'walk' ? '6 4' : s.mode === 'bike' ? '4 3' : null;
+        L.polyline(coords, { color: lineColor, weight: 2.5, opacity: 0.75, dashArray: dash }).addTo(window.stringGroup);
+      }
+    }
+  } catch(e) { console.warn('renderStrings error:', e); }
+};
 if (typeof renderTimeline !== 'function') window.renderTimeline = function() {};
 
 const TRASH_DAYS = 7;
@@ -61,14 +86,14 @@ window.addEventListener('DOMContentLoaded', async function() {
     window.map.on('touchend', () => clearTimeout(pressTimer), { passive: true });
   }
   initTheme();
-  try { await loadTrips(); } catch(e) { console.warn('loadTrips:', e); }
-  try { await renderCalendar(); } catch(e) { console.warn('renderCalendar:', e); }
-  await updateTrashBadge();
-  updateSyncStatus();
-  checkSharedTrip();
-  startTrashSweep();
+  try { await window.loadTrips(); } catch(e) { console.warn('loadTrips:', e); }
+  try { await window.renderCalendar(); } catch(e) { console.warn('renderCalendar:', e); }
+  await window.updateTrashBadge();
+  window.updateSyncStatus();
+  window.checkSharedTrip();
+  window.startTrashSweep();
   document.addEventListener('click', function(e) {
-    if (!e.target.closest('.fab-menu') && !e.target.closest('.fab') && !e.target.closest('.explore-bar')) closeFAB();
+    if (!e.target.closest('.fab-menu') && !e.target.closest('.fab') && !e.target.closest('.explore-bar')) window.closeFAB();
     if (!e.target.closest('.header-center')) { var sr = document.getElementById('searchResults'); if (sr) sr.classList.remove('open'); }
   });
 });
@@ -114,9 +139,9 @@ window.openFAB = function() {
 };
 
 window.closeFAB = function() { document.getElementById('fabMenu').style.display = 'none'; };
-window.newTrip = function() { closeFAB(); openTripModal(); };
+window.newTrip = function() { window.closeFAB(); openTripModal(); };
 window.addCurrentPin = function() {
-  closeFAB();
+  window.closeFAB();
   // Prefer the selected waypoint's location, otherwise fall back to map center.
   var lat, lng;
   if (state.selectedWaypoint && state.waypoints.get(state.selectedWaypoint)) {
@@ -150,14 +175,14 @@ window.toggleExplore = function() {
 };
 
 window.exploreCurrentPin = function() {
-  closeFAB();
+  window.closeFAB();
   if (state.selectedWaypoint) {
     var wp = state.waypoints.get(state.selectedWaypoint);
     if (wp) { switchExplore('nearby'); doExplore(wp.lat, wp.lng); }
   }
 };
 window.addFromGPS = function() {
-  closeFAB();
+  window.closeFAB();
   if (!navigator.geolocation) return;
   navigator.geolocation.getCurrentPosition(
     function(pos) { openWaypointModal(pos.coords.latitude, pos.coords.longitude); },
@@ -202,7 +227,7 @@ window.saveTripModal = async function() {
     tripData.id = id;
   }
   closeModal('tripModal');
-  await loadTrips();
+  await window.loadTrips();
   if (tripData.id) selectTrip(tripData.id);
 };
 
@@ -292,8 +317,8 @@ window.selectTrip = async function(id) {
   document.getElementById('timelineControls').style.display = wps.length > 1 ? '' : 'none';
   renderTimeline();
   if (typeof window.renderStrings === 'function') window.renderStrings();
-  await renderCalendar();
-  await loadTrips();
+  await window.renderCalendar();
+  await window.loadTrips();
 };
 
 window.closeTrip = function() {
@@ -318,7 +343,7 @@ window.completeCurrentTrip = async function() {
   await db.trips.update(state.trip.id, { status: 'completed', completedAt: Date.now() });
   state.trip.status = 'completed';
   document.getElementById('tripBannerStats').textContent = 'Completed';
-  await loadTrips();
+  await window.loadTrips();
 };
 
 // ─── Timeline ────────────────────────────────────────────────────────────
@@ -384,19 +409,15 @@ function clearTimelineHighlight() {
 }
 
 // ─── Calendar ────────────────────────────────────────────────────────────
-window.renderCalendar = renderCalendar;
 window.calNav = function(dir) {
   calMonth += dir;
   if (calMonth < 0) { calMonth = 11; calYear--; }
   if (calMonth > 11) { calMonth = 0; calYear++; }
   renderCalendar();
 };
-window.loadTrips = loadTrips;
 window.renderTimeline = renderTimeline;
-window.addWaypointToMap = addWaypointToMap;
 Object.defineProperty(window, 'calYear', { get: function() { return calYear; }, set: function(v) { calYear = v; } });
 Object.defineProperty(window, 'calMonth', { get: function() { return calMonth; }, set: function(v) { calMonth = v; } });
-window.calDayClick = calDayClick;
 
 async function renderCalendar() {
   try {
@@ -501,14 +522,14 @@ async function updateTrashBadge() {
   if (badge) { badge.textContent = count; badge.style.display = count ? '' : 'none'; }
 }
 
-window.restoreTrashItem = async function(id) { await db.trips.update(id, { status: 'planning', deletedAt: null }); await loadTrash(); await updateTrashBadge(); };
+window.restoreTrashItem = async function(id) { await db.trips.update(id, { status: 'planning', deletedAt: null }); await loadTrash(); await window.updateTrashBadge(); };
 
 window.permaDeleteTrash = async function(id) {
   if (!confirm('Permanently delete this trip?')) return;
   await db.trips.delete(id);
   await db.waypoints.where('tripId').equals(id).delete();
   await loadTrash();
-  await updateTrashBadge();
+  await window.updateTrashBadge();
 };
 
 window.emptyTrashAll = async function() {
@@ -522,10 +543,10 @@ window.emptyTrashAll = async function() {
     }
   }
   await loadTrash();
-  await updateTrashBadge();
+  await window.updateTrashBadge();
 };
 
-function startTrashSweep() {
+window.startTrashSweep = function() {
   setInterval(async function() {
     var cutoff = Date.now() - TRASH_DAYS * 86400000;
     var items = await db.trips.where('status').equals('trash').toArray();
@@ -536,7 +557,7 @@ function startTrashSweep() {
         await db.waypoints.where('tripId').equals(t.id).delete();
       }
     }
-    await updateTrashBadge();
+    await window.updateTrashBadge();
   }, 3600000);
 }
 
@@ -714,7 +735,7 @@ window.saveExplorePin = async function(lat, lng, name, kind) {
     tripId: state.trip.id, tripName: state.trip.name,
     date: new Date().toISOString().slice(0, 10)
   });
-  closeFAB();
+  window.closeFAB();
 };
 
 // ─── Undo ────────────────────────────────────────────────────────────────
@@ -734,7 +755,7 @@ window.undoLast = async function() {
   try { localStorage.setItem('tm_undo', JSON.stringify(undoStack)); } catch {}
   if (action.action === 'delete_trip') await db.trips.add(action.data);
   else if (action.action === 'delete_wp') await db.waypoints.add(action.data);
-  await loadTrips();
+  await window.loadTrips();
 };
 
 // ─── Modal helpers ────────────────────────────────────────────────────────
@@ -753,7 +774,7 @@ window.closeModal = function(id) {
 };
 
 // ─── Shared trip check ────────────────────────────────────────────────────
-async function checkSharedTrip() {
+window.checkSharedTrip = async function() {
   var hash = window.location.hash;
   if (!hash.startsWith('#share=') && !hash.startsWith('#view=')) return;
   var result = await loadSharedTrip(hash.slice(1));
@@ -802,7 +823,7 @@ window.importTripsFromFile = async function(event) {
       for (var k = 0; k < strs.length; k++) { strs[k].tripId = id; await db.strings.add(strs[k]); }
       count++;
     }
-    await loadTrips();
+    await window.loadTrips();
     alert('Imported ' + count + ' trip' + (count !== 1 ? 's' : '') + '!');
   } catch(e) { alert('Import failed: ' + e.message); }
 };
@@ -980,3 +1001,9 @@ window.deleteWaypoint = async function(wpId) {
   document.getElementById('timeline').style.display = state.waypoints.size > 1 ? '' : 'none';
   if (typeof window.renderStrings === 'function') window.renderStrings();
 };
+
+// ─── Window exports (must be after all function declarations) ───
+window.renderCalendar = renderCalendar;
+window.loadTrips = loadTrips;
+window.addWaypointToMap = addWaypointToMap;
+window.calDayClick = calDayClick;
