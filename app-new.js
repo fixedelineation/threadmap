@@ -1,7 +1,7 @@
 // app-new.js - ThreadMaps new UI layer
 // Removed broken import - accessing globals via window
 import { shareTrip, getSyncStatus, requestSyncFolder, syncToFolder, syncFromFolder, requestPhotoFolder, decryptTrip, loadSharedTrip, shareViaNostr } from './share.js';
-import { db, state, map } from './main.js';
+import { db, state, map, renderStrings } from './main.js';
 
 const TRASH_DAYS = 7;
 var calYear = new Date().getFullYear();
@@ -287,7 +287,7 @@ window.selectTrip = async function(id) {
   document.getElementById('timeline').style.display = wps.length > 1 ? '' : 'none';
   document.getElementById('timelineControls').style.display = wps.length > 1 ? '' : 'none';
   renderTimeline();
-  if (typeof renderStrings === 'function') renderStrings();
+  renderStrings();
   await renderCalendar();
   await loadTrips();
 };
@@ -318,27 +318,69 @@ window.completeCurrentTrip = async function() {
 };
 
 // ─── Timeline ────────────────────────────────────────────────────────────
+var activeTimelineWpId = null;
 function renderTimeline() {
   var scroll = document.getElementById('timelineScroll');
   if (!scroll) return;
   var wps = Array.from(state.waypoints.values());
-  var sorted = sortMode === 'sequence' ? wps : sortMode === 'date' ? wps.sort(function(a,b) { return (a.date||'').localeCompare(b.date||''); }) : wps.sort(function(a,b) { return (a.name||'').localeCompare(b.name||''); });
+  var sorted = wps.slice().sort(function(a,b) {
+    if (sortMode === 'date') return (a.date||'').localeCompare(b.date||'');
+    if (sortMode === 'name') return (a.name||'').localeCompare(b.name||'');
+    return (a.sequence||0) - (b.sequence||0);
+  });
   scroll.innerHTML = '';
-  sorted.forEach(function(wp) {
+  sorted.forEach(function(wp, idx) {
     var item = document.createElement('div');
-    item.className = 'timeline-item';
-    var emoji = wp.type === 'flight' ? '&#9992;' : wp.type === 'train' ? '&#128646;' : '&#128205;';
-    item.innerHTML = '<div class="tl-dot" style="background:' + (wp.color || 'var(--accent)') + '">' + emoji + '</div>' +
-      '<div class="timeline-item-name">' + escHtml(wp.name || 'Pin') + '</div>';
-    item.onclick = function() {
+    item.className = 'timeline-item' + (activeTimelineWpId === wp.id ? ' active' : '');
+    var icon = wp.type === 'flight' ? '\u2708' : wp.type === 'train' ? '\uD83D\uDE8C' : wp.type === 'car' ? '\uD83D\uDE97' : wp.type === 'boat' ? '\uD83D\uDEA2' : wp.type === 'bike' ? '\uD83D\uDEB2' : '\uD83D\uDCCD';
+    var dateLabel = wp.date ? wp.date.split('-').slice(1).join('/') : (idx + 1 + '');
+    item.innerHTML = '<div class="tl-dot" style="background:' + (wp.color || '#6366f1') + '">' + icon + '</div>' +
+      '<div class="timeline-item-name">' + escHtml(wp.name || 'Pin') + '</div>' +
+      '<div class="timeline-item-date">' + dateLabel + '</div>';
+    item.onmouseenter = function() {
+      activeTimelineWpId = wp.id;
+      highlightTimelinePin(wp.id);
       var m = state.markerMap.get(wp.id);
-      if (m) { map.setView(m.getLatLng(), 15); handleWaypointClick(wp.id, m); }
+      if (m) m.getElement()?.classList.add('highlighted');
+    };
+    item.onmouseleave = function() {
+      if (activeTimelineWpId === wp.id) activeTimelineWpId = null;
+      clearTimelineHighlight();
+    };
+    item.onclick = function() {
+      activeTimelineWpId = wp.id;
+      renderTimeline();
+      var m = state.markerMap.get(wp.id);
+      if (m) {
+        map.setView(m.getLatLng(), 16);
+        if (typeof handleWaypointClick === 'function') handleWaypointClick(wp.id, m);
+        else if (window.handleWaypointClick) window.handleWaypointClick(wp.id, m);
+      }
     };
     scroll.appendChild(item);
   });
 }
 
+// Dim all markers except wpId, store original opacity for restore
+var _savedOpacities = new Map();
+function highlightTimelinePin(wpId) {
+  state.markerMap.forEach(function(m, id) {
+    var el = m.getElement();
+    if (!el) return;
+    if (id !== wpId) {
+      el.style.opacity = '0.3';
+    }
+  });
+}
+function clearTimelineHighlight() {
+  state.markerMap.forEach(function(m, id) {
+    var el = m.getElement();
+    if (el) el.style.opacity = '';
+  });
+}
+
 // ─── Calendar ────────────────────────────────────────────────────────────
+window.renderCalendar = renderCalendar;
 window.calNav = function(dir) {
   calMonth += dir;
   if (calMonth < 0) { calMonth = 11; calYear--; }
@@ -359,6 +401,7 @@ async function renderCalendar() {
   for (var i = 0; i < firstDay; i++) html += '<div class="cal-day other-month"></div>';
   // Collect all waypoint dates for this month
   var allWaypoints = await db.waypoints.toArray();
+  if (state.trip) allWaypoints = allWaypoints.filter(function(wp) { return wp.tripId === state.trip.id; });
   var pinDays = new Set();
   allWaypoints.forEach(function(wp) {
     if (!wp.date) return;
@@ -379,24 +422,46 @@ async function renderCalendar() {
 
 window.calDayClick = async function(day) {
   var detail = document.getElementById('calDayDetail');
-  detail.style.display = '';
   var dateStr = calYear + '-' + String(calMonth + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+  // Toggle: if already showing this day, close it
+  if (detail.dataset.open === dateStr) {
+    detail.style.display = 'none';
+    detail.dataset.open = '';
+    return;
+  }
   var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  var html = '<div class="cal-day-title">' + months[calMonth] + ' ' + day + '</div>';
-  // Show pins on this day
+  var html = '<div class="cal-day-title">' + months[calMonth] + ' ' + day + ', ' + calYear + '</div>';
+  html += '<div class="cal-wp-list">';
+  // Filter by current trip if one is active
+  var tripFilter = state.trip ? db.waypoints.where('tripId').equals(state.trip.id) : null;
   var pins = await db.waypoints.where('date').equals(dateStr).toArray();
+  if (state.trip) pins = pins.filter(function(wp) { return wp.tripId === state.trip.id; });
   if (pins.length) {
-    pins.forEach(function(wp) { html += '<div class="cal-wp" onclick="handleWaypointClick(' + wp.id + ')" style="cursor:pointer">&#128205; <b>' + escHtml(wp.name || 'Pin') + '</b></div>'; });
+    pins.forEach(function(wp) {
+      var icon = wp.type === 'flight' ? '\u2708' : wp.type === 'train' ? '\uD83D\uDE8C' : wp.type === 'car' ? '\uD83D\uDE97' : wp.type === 'boat' ? '\uD83D\uDEA2' : '\uD83D\uDCCD';
+      html += '<div class="cal-wp" data-wp-id="' + wp.id + '">' +
+        '<span style="font-size:1rem">' + icon + '</span>' +
+        '<span class="cal-wp-name">' + escHtml(wp.name || 'Pin') + '</span>' +
+        '<span class="cal-wp-type">' + (wp.type||'pin') + '</span></div>';
+    });
+  } else {
+    html += '<div style="padding:16px 12px;font-size:0.8rem;color:var(--fg-muted);text-align:center">No pins on this day.</div>';
   }
-  // Show trips starting on this day
-  var trips = await db.trips.where('startDate').equals(dateStr).toArray();
-  if (trips.length) {
-    trips.forEach(function(t) { html += '<div class="cal-wp">&#127758; <b>' + escHtml(t.name) + '</b> <span style="color:var(--fg-muted)">' + (t.status||'planning') + '</span></div>'; });
-  }
-  if (!pins.length && !trips.length) {
-    html += '<p style="font-size:0.8rem;color:var(--fg-muted)">Nothing on this day.</p>';
-  }
+  html += '</div>';
   detail.innerHTML = html;
+  detail.style.display = '';
+  detail.dataset.open = dateStr;
+  // Wire up clicks
+  detail.querySelectorAll('.cal-wp[data-wp-id]').forEach(function(el) {
+    el.onclick = function() {
+      var id = parseInt(el.dataset.wpId);
+      var m = state.markerMap.get(id);
+      if (m) { map.setView(m.getLatLng(), 16); }
+      if (window.handleWaypointClick) window.handleWaypointClick(id, m);
+      detail.style.display = 'none';
+      detail.dataset.open = '';
+    };
+  });
 };
 
 // ─── Trash ───────────────────────────────────────────────────────────────
@@ -787,7 +852,7 @@ window.handleWaypointClick = async function(id, marker) {
       await connectWaypoints(connectingFromId, id, mode);
     } else if (mode && window.db && window.state && window.state.trip) {
       await window.db.strings.add({ tripId: window.state.trip.id, fromId: connectingFromId, toId: id, mode: mode, geometry: null });
-      if (typeof renderStrings === 'function') renderStrings();
+      renderStrings();
     }
     connectingFromId = null;
     return;

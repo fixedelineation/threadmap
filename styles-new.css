@@ -96,26 +96,44 @@
 .trip-card-meta { font-size: 0.75rem; color: var(--fg-muted); display: flex; gap: 8px; flex-wrap: wrap; }
 
 /* ── Calendar ───────────────────────────── */
-.cal-nav { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; }
-.cal-month { font-weight: 600; font-size: 0.9rem; }
-.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; padding: 4px 8px 8px; }
-.cal-hdr { text-align: center; font-size: 0.65rem; font-weight: 700; color: var(--fg-muted); padding: 4px 0; }
+.cal-nav { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; gap: 8px; }
+.cal-month { font-weight: 700; font-size: 1rem; letter-spacing: 0.01em; flex: 1; text-align: center; }
+.cal-hdr { text-align: center; font-size: 0.6rem; font-weight: 700; color: var(--fg-muted); padding: 6px 0 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; padding: 4px 12px 12px; }
 .cal-day {
-  aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
-  font-size: 0.78rem; border-radius: 6px; cursor: pointer; transition: all 0.15s; position: relative;
+  aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-size: 1rem; font-weight: 500; border-radius: 10px; cursor: pointer; transition: all 0.15s; position: relative;
+  min-height: 40px;
 }
 .cal-day:hover { background: var(--bg-overlay); }
-.cal-day.has-trip::after {
-  content: ''; position: absolute; bottom: 3px; width: 4px; height: 4px;
-  background: var(--accent); border-radius: 50%; left: 50%; transform: translateX(-50%);
+.cal-day.today { border: 2px solid var(--accent); font-weight: 700; color: var(--accent); }
+.cal-day.selected { background: var(--accent); color: #fff; font-weight: 700; }
+.cal-day.other-month { color: var(--fg-muted); opacity: 0.35; }
+.cal-day.empty { pointer-events: none; }
+
+/* Pin dot: small colored dot below the day number */
+.pin-dot {
+  display: block; width: 5px; height: 5px; border-radius: 50%;
+  background: #a78bfa; margin-top: 2px; flex-shrink: 0;
 }
-.cal-day.today { border: 1px solid var(--accent); }
-.cal-day.selected { background: var(--accent); color: #fff; }
-.cal-day.other-month { color: var(--fg-muted); opacity: 0.4; }
-.cal-day-detail { padding: 12px; border-top: 1px solid var(--border); }
-.cal-day-title { font-weight: 600; font-size: 0.85rem; margin-bottom: 8px; }
-.cal-wp { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 0.82rem; border-bottom: 1px solid var(--border); }
+.cal-day.has-pin { font-weight: 700; }
+.cal-day.has-pin .pin-dot { background: #a78bfa; }
+
+/* Day detail panel: slides up below the grid */
+#calDayDetail {
+  border-top: 1px solid var(--border);
+  background: var(--bg-secondary);
+  max-height: 200px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.cal-day-title { font-weight: 700; font-size: 0.9rem; padding: 10px 12px 6px; color: var(--fg-primary); border-bottom: 1px solid var(--border); }
+.cal-wp-list { padding: 6px 0; }
+.cal-wp { display: flex; align-items: center; gap: 10px; padding: 8px 12px; font-size: 0.82rem; cursor: pointer; transition: background 0.1s; }
+.cal-wp:hover { background: var(--bg-overlay); }
 .cal-wp:last-child { border-bottom: none; }
+.cal-wp-name { font-weight: 600; flex: 1; }
+.cal-wp-type { font-size: 0.7rem; color: var(--fg-muted); text-transform: capitalize; }
 
 /* ── Trash ──────────────────────────────── */
 .trash-info {
@@ -128,14 +146,33 @@
 .trash-perma { background: transparent; color: var(--red); border: 1px solid var(--red); padding: 4px 10px; border-radius: 6px; font-size: 0.72rem; cursor: pointer; }
 
 /* ── Timeline bar ───────────────────────── */
-.timeline-bar { border-top: 1px solid var(--border); padding: 8px; flex-shrink: 0; }
-.timeline-scroll { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
-.timeline-item { flex-shrink: 0; width: 80px; text-align: center; cursor: pointer; padding: 6px 4px; border-radius: 8px; transition: background 0.15s; }
-.timeline-item:hover { background: var(--bg-overlay); }
-.tl-dot { width: 24px; height: 24px; border-radius: 50%; margin: 0 auto 4px; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; }
-.timeline-item-name { font-size: 0.65rem; color: var(--fg-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.timeline-legend { display: flex; gap: 12px; font-size: 0.7rem; color: var(--fg-muted); margin-top: 4px; }
+.timeline-bar { border-top: 1px solid var(--border); padding: 10px 12px 8px; flex-shrink: 0; background: var(--bg-primary); }
+.timeline-scroll { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+.timeline-scroll::-webkit-scrollbar { height: 3px; }
+.timeline-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.timeline-item {
+  flex-shrink: 0; width: 72px; text-align: center; cursor: pointer;
+  padding: 8px 6px; border-radius: 12px; transition: all 0.15s;
+  border: 2px solid transparent; background: var(--bg-secondary);
+}
+.timeline-item:hover { background: var(--bg-overlay); border-color: var(--border); }
+.timeline-item.active {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border-color: var(--accent);
+}
+.tl-dot {
+  width: 36px; height: 36px; border-radius: 50%; margin: 0 auto 6px;
+  display: flex; align-items: center; justify-content: center; font-size: 1rem;
+  border: 2px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+.timeline-item-name { font-size: 0.68rem; color: var(--fg-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 68px; margin: 0 auto; }
+.timeline-item.active .timeline-item-name { color: var(--fg-primary); font-weight: 600; }
+.timeline-item-date { font-size: 0.6rem; color: var(--fg-muted); margin-top: 2px; }
+.timeline-item.active .timeline-item-date { color: var(--accent); font-weight: 600; }
+.timeline-legend { display: flex; gap: 12px; font-size: 0.7rem; color: var(--fg-muted); margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--border); }
 
+\n/* ── Pin highlight from timeline ──────── */
+.leaflet-marker-icon.highlighted { filter: brightness(1.4) drop-shadow(0 0 8px rgba(255,200,0,0.8)); transform-origin: bottom center; }
 /* ── FAB ───────────────────────────────── */
 .fab-btn, .fab {
   border-radius: 50%;

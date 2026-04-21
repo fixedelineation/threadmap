@@ -120,6 +120,8 @@ function makePinIcon(wp) {
     className: '', iconSize: [28, 28], iconAnchor: [14, 28], popupAnchor: [0, -28]
   });
 }
+var travelColors = { walk:'#22d3ee', bike:'#a3e635', car:'#fb923c', train:'#60a5fa', fly:'#c084fc', boat:'#38bdf8' };
+var stringGroup = null;
 window.makePinIcon = makePinIcon;
 
 export function initMap() {
@@ -145,6 +147,7 @@ export function initMap() {
   // Expose globally for app-new.js (must be synchronous, before any awaits)
   window.map = map;
   window.mapReady = true;
+  stringGroup = L.layerGroup().addTo(map);
 
   return map;
 }
@@ -262,131 +265,27 @@ async function connectWaypoints(fromId, toId) {
 // --------------------------------------------------------------
 // 🔟 Render all strings (lines) – macro vs. micro view
 // --------------------------------------------------------------
-async function renderStrings() {
-  state.lines.forEach(l => map.removeLayer(l));
-  state.lines.clear();
-
-  const zoom = map.getZoom();
-  if (!state.trip) return;  // no active trip — don't render orphan lines
-  const strings = await db.strings.where('tripId').equals(state.trip.id).toArray();
-
-  for (const s of strings) {
-    const from = await db.waypoints.get(s.fromId);
-    const to   = await db.waypoints.get(s.toId);
-    if (!from || !to) continue;
-
-    const style = travelStyles[s.mode] || travelStyles.other;
-    const path = (zoom > 12 && s.geometry)
-      ? s.geometry
-      : (s.mode === 'flight' ? generateArc([from, to]) : [[from.lat, from.lng], [to.lat, to.lng]]);
-
-    const line = L.polyline(path, { ...style, className: `string-line string-${s.mode}` }).addTo(map);
-    state.lines.set(`${s.fromId}-${s.toId}`, line);
+export async function renderStrings() {
+    if (!map || !state.trip) { stringGroup.clearLayers(); return; }
+    stringGroup.clearLayers();
+    const strings = await db.strings.where('tripId').equals(state.trip.id).toArray();
+    for (const s of strings) {
+      let coords = [];
+      if (s.fromId && s.toId) {
+        const from = await db.waypoints.get(s.fromId);
+        const to = await db.waypoints.get(s.toId);
+        if (from && to) coords = [[from.lat, from.lng], [to.lat, to.lng]];
+      } else if (s.geometry && s.geometry.coordinates) {
+        coords = s.geometry.coordinates.map(c => [c[1], c[0]]);
+      }
+      if (coords.length >= 2) {
+        const lineColor = travelColors[s.mode] || '#6366f1';
+        const dash = s.mode === 'walk' ? '6 4' : s.mode === 'bike' ? '4 3' : null;
+        L.polyline(coords, { color: lineColor, weight: 2.5, opacity: 0.75, dashArray: dash }).addTo(stringGroup);
+      }
+window.renderStrings = renderStrings;
+    }
   }
-}
-
-// --------------------------------------------------------------
-// 1️⃣1️⃣ Helper for a curved flight‑arc
-// --------------------------------------------------------------
-function generateArc(pts) {
-  const p1 = L.latLng(pts[0].lat, pts[0].lng);
-  const p2 = L.latLng(pts[1].lat, pts[1].lng);
-  const mid = L.latLng((p1.lat + p2.lat) / 2, (p1.lng + p2.lng) / 2);
-  mid.lat += 0.2; // give the arc a little height
-  return [p1, mid, p2];
-}
-
-// --------------------------------------------------------------
-// 1️⃣2️⃣ Show the “Add Anchor” modal (long‑press)
-// --------------------------------------------------------------
-export function showAddModal(latlng) {
-  const modal = document.getElementById('waypointModal');
-  if (!modal) { alert('Add modal missing from page'); return; }
-  document.getElementById('wpLat').value = latlng.lat;
-  document.getElementById('wpLng').value = latlng.lng;
-  document.getElementById('wpEditId').value = '';
-  document.getElementById('waypointModalTitle').textContent = 'Add Pin';
-  document.getElementById('wpName').value = '';
-  document.getElementById('wpType').value = 'pin';
-  document.getElementById('wpTags').value = '';
-  document.getElementById('wpDate').value = '';
-  document.getElementById('wpNotes').value = '';
-  modal.style.display = 'flex';
-}
-
-// --------------------------------------------------------------
-// 1️⃣3️⃣ Show details for a saved waypoint (side‑sheet)
-// --------------------------------------------------------------
-export async function showWaypointDetails(id) {
-  // Use the new waypoint modal from app-new.js if available
-  if (typeof window.openWaypointModal === 'function') {
-    const wp = await db.waypoints.get(id);
-    if (wp) { window.openWaypointModal(wp.lat, wp.lng, wp); return; }
-  }
-  const sheet = document.getElementById('detail-sheet');
-  if (!sheet) return;
-  sheet.style.transform = 'translateY(0)';
-  document.getElementById('waypoint-id').value = id;
-
-  const wp = await db.waypoints.get(id);
-
-  // Gather all visits that share the exact lat/lng (for layered UI)
-  const allVisits = await db.waypoints
-    .filter(w => w.lat === wp.lat && w.lng === wp.lng)
-    .toArray()
-    .then(res => res.sort((a, b) => a.layer - b.layer));
-
-  const switcher = document.getElementById('layer-switcher');
-  switcher.innerHTML = '';
-  allVisits.forEach(visit => {
-    const btn = document.createElement('button');
-    btn.innerText = `Visit ${visit.layer}`;
-    btn.style.cssText = `
-      padding:5px 10px;
-      border-radius:10px;
-      border:1px solid #444;
-      background:${visit.id === id ? '#00D2FF' : '#1a1a1a'};
-      color:${visit.id === id ? 'black' : 'white'};
-      cursor:pointer;
-      font-size:10px;
-    `;
-    btn.onclick = () => {
-      document.getElementById('waypoint-id').value = visit.id;
-      showWaypointDetails(visit.id);
-    };
-    switcher.appendChild(btn);
-  });
-
-  document.getElementById('detail-name').innerText = wp.name || 'Unnamed Spot';
-  document.getElementById('detail-notes').value = wp.notes || '';
-  document.getElementById('photo-grid').innerHTML = '';
-  loadPhotosForWaypoint(id);
-
-  // ---- Populate tags, status, rating UI ----
-  const tagsSelect = document.getElementById('detail-tags');
-  Array.from(tagsSelect.options).forEach(opt => {
-    opt.selected = wp.tags?.includes(opt.value);
-  });
-  document.getElementById('detail-status').value = wp.status || 'want';
-
-  const ratingSection = document.getElementById('rating-section');
-  ratingSection.style.display = wp.status === 'been' ? 'block' : 'none';
-
-  const starsDiv = document.getElementById('rating-stars');
-  const rating = wp.rating || 0;
-  starsDiv.innerHTML = '★★★★★'.split('').map((star, i) => {
-    return `<span data-index="${i+1}" style="opacity:${i < rating ? 1 : 0.3}">★</span>`;
-  }).join('');
-
-  starsDiv.onclick = async e => {
-    const span = e.target.closest('span');
-    if (!span) return;
-    const newRating = parseInt(span.dataset.index);
-    await db.waypoints.update(id, { rating: newRating });
-    // refresh UI
-    showWaypointDetails(id);
-  };
-}
 
 // --------------------------------------------------------------
 // 1️⃣4️⃣ Load photos for a waypoint (grid view)
